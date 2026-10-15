@@ -1,0 +1,36 @@
+{
+  "name": "exokortex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ExoKortex watches your project repositories and keeps your portfolio up to date, using your own LLM key.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.ts",
+    "dev": "pnpm --parallel --filter @exokortex/worker --filter @exokortex/web dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r --workspace-concurrency=4 typecheck",
+    "build": "pnpm typecheck && pnpm --filter @exokortex/web build && pnpm --filter @exokortex/worker build",
+    "db:migrate:local": "pnpm --filter @exokortex/worker db:migrate:local"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261015.1",
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.6.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.151.0"
+  }
+}

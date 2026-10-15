@@ -1,0 +1,126 @@
+:root {
+  color: #1c1915;
+  background: #f6f3ec;
+  font:
+    16px/1.5 "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+.button {
+  background: #1c1915;
+  color: #f6f3ec;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.ghost,
+a.ghost {
+  background: transparent;
+  color: #1c1915;
+  border: 1px solid #c8c0b0;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #c8c0b0;
+  border-radius: 4px;
+  background: white;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+nav {
+  padding: 20px;
+  border-right: 1px solid #e2dace;
+}
+
+nav a {
+  display: block;
+  padding: 6px 0;
+  text-decoration: none;
+}
+
+nav a.active {
+  font-weight: 650;
+}
+
+main {
+  padding: 28px;
+  max-width: 960px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e2dace;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #e2dace;
+  vertical-align: top;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+  max-width: 460px;
+}
+
+.error {
+  color: #8d2d2d;
+}
+
+.muted {
+  color: #6d655b;
+}
+
+.login {
+  max-width: 420px;
+  margin: 10vh auto;
+  padding: 24px;
+}

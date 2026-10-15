@@ -1,0 +1,33 @@
+{
+  "name": "@exokortex/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./ensure-assets.mjs && wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply exokortex --local",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.24.0",
+    "@exokortex/agents": "workspace:*",
+    "@exokortex/core": "workspace:*",
+    "@exokortex/database": "workspace:*",
+    "@exokortex/github": "workspace:*",
+    "@exokortex/jobs": "workspace:*",
+    "@exokortex/llm": "workspace:*",
+    "@exokortex/orchestrator": "workspace:*",
+    "@exokortex/security": "workspace:*",
+    "@exokortex/shared": "workspace:*",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261015.1",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.151.0"
+  }
+}

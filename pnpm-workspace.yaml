@@ -1,0 +1,20 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: true
+  "@clerk/shared": true
+minimumReleaseAgeExclude:
+  - "@clerk/backend@3.24.0"
+  - "@cloudflare/workers-types@5.20261015.1"
+  - "@vitest/expect@4.1.12"
+  - "@vitest/mocker@4.1.12"
+  - "@vitest/pretty-format@4.1.12"
+  - "@vitest/runner@4.1.12"
+  - "@vitest/snapshot@4.1.12"
+  - "@vitest/spy@4.1.12"
+  - "@vitest/utils@4.1.12"
+  - vitest@4.1.12
