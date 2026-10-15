@@ -1,7 +1,36 @@
-.env
-.venv/
-__pycache__/
-*.egg-info/
-.pytest_cache/
-build/
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
 dist/
+build/
+*.tsbuildinfo
+coverage/
+
+# Cloudflare / Wrangler local state
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Secrets that must never be committed
+*.pem
+*.private-key.pem
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
