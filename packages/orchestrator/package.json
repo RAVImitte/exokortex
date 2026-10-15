@@ -10,8 +10,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@exokortex/agents": "workspace:*",
     "@exokortex/core": "workspace:*",
     "@exokortex/database": "workspace:*",
+    "@exokortex/llm": "workspace:*",
     "@exokortex/source-providers": "workspace:*"
   },
   "devDependencies": {

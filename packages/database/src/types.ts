@@ -43,6 +43,8 @@ export interface ChangeEventRecord {
   toRevision: string;
   type: string;
   status: string;
+  summary: string | null;
+  significance: string | null;
   createdAt: string;
 }
 

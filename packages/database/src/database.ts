@@ -1,3 +1,4 @@
+import { AgentRunRepository } from "./repositories/agent-runs.js";
 import { AuditRepository } from "./repositories/audit.js";
 import { ChangeEventRepository } from "./repositories/changes.js";
 import { ConnectionRepository } from "./repositories/connections.js";
@@ -15,6 +16,7 @@ export class Database {
   readonly changes: ChangeEventRepository;
   readonly jobs: JobRepository;
   readonly workflows: WorkflowRepository;
+  readonly agents: AgentRunRepository;
   readonly audit: AuditRepository;
   readonly llm: LlmConfigRepository;
   readonly dashboard: DashboardRepository;
@@ -26,6 +28,7 @@ export class Database {
     this.changes = new ChangeEventRepository(d1);
     this.jobs = new JobRepository(d1);
     this.workflows = new WorkflowRepository(d1);
+    this.agents = new AgentRunRepository(d1);
     this.audit = new AuditRepository(d1);
     this.llm = new LlmConfigRepository(d1);
     this.dashboard = new DashboardRepository(d1);

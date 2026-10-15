@@ -1,8 +1,19 @@
+import { scoutReport, type ScoutReport } from "@exokortex/agents";
 import { limits } from "@exokortex/core";
 import { Database } from "@exokortex/database";
 import { GitHubProvider } from "@exokortex/github";
 import { maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex/jobs";
-import { runUserScan } from "@exokortex/orchestrator";
+import { OpenAICompatibleProvider, type LLMProvider } from "@exokortex/llm";
+import {
+  analyzeChange,
+  analystContextFiles,
+  runAgentPass,
+  runUserScan,
+  scoutChange,
+  type AnalysisChange,
+  type AnalysisHooks,
+} from "@exokortex/orchestrator";
+import { decryptString, importAesKey } from "@exokortex/security";
 import { log, nowIso } from "@exokortex/shared";
 import type { Env, JobMessage } from "./env.js";
 
@@ -65,11 +76,104 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       repositoryId: payload.repositoryId,
       now,
     });
-    if (claimed.workflowId) {
-      await db.workflows.transition(claimed.userId, claimed.workflowId, "COMPLETED", now);
+    const open = await db.changes.listOpen(claimed.userId, payload.repositoryId);
+    if (open.length === 0) {
+      await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
+      await db.jobs.complete(jobId, now);
+      log("info", "scan completed", { userId: claimed.userId, jobId, ...summary });
+      return;
     }
+    const llm = await userLlm(env, db, claimed.userId);
+    const repos = await db.repos.list(claimed.userId);
+    const targets = open.flatMap((change) => {
+      const repo = repos.find((item) => item.id === change.repositoryId);
+      if (!repo) return [];
+      return [
+        {
+          id: change.id,
+          repositoryName: repo.name,
+          defaultBranch: repo.defaultBranch ?? "main",
+          fromRevision: change.fromRevision,
+          toRevision: change.toRevision,
+        } satisfies AnalysisChange,
+      ];
+    });
+    const hooks = agentHooks(db, claimed.userId);
+    const scouted = new Map<string, ScoutReport>();
+    await move(db, claimed.userId, claimed.workflowId, "SCOUTING", now);
+    await runAgentPass({
+      changes: targets,
+      agent: "scout",
+      hooks,
+      run: async (change) => {
+        const repo = repos.find((item) => item.name === change.repositoryName);
+        if (!repo) throw new Error(`repository missing for ${change.repositoryName}`);
+        const files = await provider.getChanges(
+          { installationId: payload.installationId! },
+          { externalId: repo.externalId, name: repo.name, defaultBranch: change.defaultBranch },
+          change.fromRevision,
+          change.toRevision,
+        );
+        const report = await scoutChange({ llm, change, files });
+        scouted.set(change.id, report);
+        return report;
+      },
+      after: async (change, report) => {
+        if (report.meaningful && report.significance !== "noise") return;
+        await db.changes.mark(claimed.userId, change.id, {
+          summary: report.summary,
+          significance: report.significance,
+          status: "ignored",
+          now,
+        });
+      },
+    });
+    await move(db, claimed.userId, claimed.workflowId, "ANALYZING", now);
+    const meaningful: AnalysisChange[] = [];
+    for (const change of targets) {
+      const scout = await scoutFor(db, claimed.userId, change.id, scouted);
+      if (scout.meaningful && scout.significance !== "noise") meaningful.push(change);
+    }
+    await runAgentPass({
+      changes: meaningful,
+      agent: "analyst",
+      hooks,
+      run: async (change) => {
+        const scout = await scoutFor(db, claimed.userId, change.id, scouted);
+        const repo = repos.find((item) => item.name === change.repositoryName);
+        if (!repo) throw new Error(`repository missing for ${change.repositoryName}`);
+        const files = [];
+        for (const path of analystContextFiles) {
+          const file = await readFile(
+            provider,
+            payload.installationId!,
+            repo,
+            change.defaultBranch,
+            path,
+            change.toRevision,
+          );
+          if (file) files.push(file);
+        }
+        return analyzeChange({ llm, change, scout, files });
+      },
+      after: async (change, report) => {
+        const scout = scouted.get(change.id);
+        await db.changes.mark(claimed.userId, change.id, {
+          summary: report.purpose,
+          significance: scout?.significance ?? "low",
+          status: "analyzed",
+          now,
+        });
+      },
+    });
+    await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
     await db.jobs.complete(jobId, now);
-    log("info", "scan completed", { userId: claimed.userId, jobId, ...summary });
+    log("info", "scan completed", {
+      userId: claimed.userId,
+      jobId,
+      ...summary,
+      analyzed: targets.length,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "scan failed";
     const retry = shouldRetry(claimed.attempts, claimed.maxAttempts);
@@ -87,6 +191,74 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       }
     }
     log("error", "scan failed", { userId: claimed.userId, jobId, error: message });
+  }
+}
+
+async function move(
+  db: Database,
+  userId: string,
+  workflowId: string | null,
+  to: "SCOUTING" | "ANALYZING" | "COMPLETED",
+  now: string,
+): Promise<void> {
+  if (!workflowId) return;
+  try {
+    await db.workflows.transition(userId, workflowId, to, now);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("Illegal workflow transition"))
+      throw error;
+  }
+}
+
+function agentHooks(db: Database, userId: string): AnalysisHooks {
+  return {
+    alreadyRan: (changeId, agent) => db.agents.hasCompleted(userId, changeId, agent),
+    saveRun: (changeId, agent, outputJson) =>
+      db.agents.complete({ userId, changeEventId: changeId, agentName: agent, outputJson }),
+    markChange: () => Promise.resolve(),
+  };
+}
+
+async function scoutFor(
+  db: Database,
+  userId: string,
+  changeId: string,
+  scouted: Map<string, ScoutReport>,
+): Promise<ScoutReport> {
+  const cached = scouted.get(changeId);
+  if (cached) return cached;
+  const raw = await db.agents.latestOutput(userId, changeId, "scout");
+  if (!raw) throw new Error("scout output is missing");
+  const report = scoutReport.parse(JSON.parse(raw));
+  scouted.set(changeId, report);
+  return report;
+}
+
+async function userLlm(env: Env, db: Database, userId: string): Promise<LLMProvider> {
+  const config = await db.llm.get(userId);
+  const cipher = await db.llm.ciphertext(userId);
+  if (!config || !cipher) throw new Error("Save an LLM config before Scout can run");
+  const apiKey = await decryptString(await importAesKey(env.ENCRYPTION_KEY), cipher);
+  return new OpenAICompatibleProvider({ baseUrl: config.baseUrl, apiKey, model: config.model });
+}
+
+async function readFile(
+  provider: GitHubProvider,
+  installationId: string,
+  repo: { externalId: string; name: string },
+  defaultBranch: string,
+  path: string,
+  revision: string,
+): Promise<{ path: string; content: string } | null> {
+  try {
+    return await provider.getFile(
+      { installationId },
+      { externalId: repo.externalId, name: repo.name, defaultBranch },
+      path,
+      revision,
+    );
+  } catch {
+    return null;
   }
 }
 

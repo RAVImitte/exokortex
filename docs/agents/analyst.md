@@ -1,6 +1,6 @@
 # Portfolio Analyst
 
-Status: **Planned**. The prompt below is the runtime string in `packages/agents/src/prompts.ts`.
+Status: **Implemented** after Scout marks a change meaningful. The prompt below is the runtime string in `packages/agents/src/prompts.ts`. Analyst receives the Scout summary plus README and manifest excerpts. It does not approve or edit the portfolio.
 
 You are Portfolio Analyst for ExoKortex.
 Explain a repository from its README, tree, manifests, history, and the files that changed.

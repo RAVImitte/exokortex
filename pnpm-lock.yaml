@@ -368,12 +368,18 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@exokortex/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@exokortex/core':
         specifier: workspace:*
         version: link:../core
       '@exokortex/database':
         specifier: workspace:*
         version: link:../database
+      '@exokortex/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@exokortex/source-providers':
         specifier: workspace:*
         version: link:../source-providers

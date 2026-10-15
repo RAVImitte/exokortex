@@ -16,7 +16,7 @@ Status words: **Implemented**, **Partially implemented**, **Planned**, **Not imp
 
 ## Phase 3 — Scout and Analyst
 
-**Planned.** Prompts and the Curator JSON schema exist. No agent runs.
+**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Analyst explains the repository from the README and manifests. Both replies are validated JSON. Curator does not run. A scan with no new SHA still completes without calling a model. An open change with no saved LLM key fails the job until a key is saved.
 
 ## Phase 4 — Curator and approval
 

@@ -72,6 +72,8 @@ export interface ChangeEventRow {
   to_revision: string;
   type: string;
   status: string;
+  summary: string | null;
+  significance: string | null;
   created_at: string;
 }
 
@@ -146,6 +148,8 @@ export function toChangeEvent(row: ChangeEventRow): ChangeEventRecord {
     toRevision: row.to_revision,
     type: row.type,
     status: row.status,
+    summary: row.summary,
+    significance: row.significance,
     createdAt: row.created_at,
   };
 }

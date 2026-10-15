@@ -20,8 +20,10 @@ export function ActivityPage() {
       <ul>
         {changes.map((change) => (
           <li key={change.id}>
-            {change.fromRevision.slice(0, 7)} → {change.toRevision.slice(0, 7)} ·{" "}
+            {change.fromRevision.slice(0, 7)} → {change.toRevision.slice(0, 7)}
+            {change.significance ? ` · ${change.significance}` : ""} · {change.status} ·{" "}
             {new Date(change.createdAt).toLocaleString()}
+            {change.summary ? <div>{change.summary}</div> : null}
           </li>
         ))}
       </ul>

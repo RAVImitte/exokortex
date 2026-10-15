@@ -33,5 +33,8 @@ export interface ChangeRow {
   id: string;
   fromRevision: string;
   toRevision: string;
+  summary: string | null;
+  significance: string | null;
+  status: string;
   createdAt: string;
 }

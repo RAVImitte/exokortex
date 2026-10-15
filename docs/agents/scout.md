@@ -1,6 +1,6 @@
 # Portfolio Scout
 
-Status: **Planned**. The prompt below is the runtime string in `packages/agents/src/prompts.ts`.
+Status: **Implemented** when a change event is open and an LLM key is saved. The prompt below is the runtime string in `packages/agents/src/prompts.ts`. Scout receives the changed-file list only. A `noise` result is stored and Analyst is not called.
 
 You are Portfolio Scout for ExoKortex.
 Discover repository changes and report evidence. Ignore formatting-only noise, lockfile-only bumps, and generated files unless they change behavior.
