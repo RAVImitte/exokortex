@@ -10,6 +10,7 @@ import {
   runAgentPass,
   runUserScan,
   scoutChange,
+  shouldAnalyzeChange,
   type AnalysisChange,
   type AnalysisHooks,
 } from "@exokortex/orchestrator";
@@ -28,13 +29,23 @@ export function githubProvider(env: Env): GitHubProvider | null {
 export async function enqueueScan(
   env: Env,
   db: Database,
-  input: { userId: string; installationId: string; repositoryId?: string; idempotencyKey: string },
+  input: {
+    userId: string;
+    installationId: string;
+    repositoryId?: string;
+    idempotencyKey: string;
+    forceAnalyze?: boolean;
+  },
 ): Promise<{ created: boolean; jobId: string }> {
   const now = nowIso();
   const { job, created } = await db.jobs.insert({
     userId: input.userId,
     type: "scan",
-    payload: { installationId: input.installationId, repositoryId: input.repositoryId },
+    payload: {
+      installationId: input.installationId,
+      repositoryId: input.repositoryId,
+      forceAnalyze: input.forceAnalyze === true,
+    },
     idempotencyKey: input.idempotencyKey,
     maxAttempts: maxAttemptsFor("scan"),
     now,
@@ -56,7 +67,9 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     const payload = JSON.parse(claimed.payloadJson) as {
       installationId?: string;
       repositoryId?: string;
+      forceAnalyze?: boolean;
     };
+    const forceAnalyze = payload.forceAnalyze === true;
     if (!payload.installationId) throw new Error("scan job is missing an installation id");
     const provider = githubProvider(env);
     if (!provider) throw new Error("GitHub App is not configured");
@@ -119,7 +132,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         return report;
       },
       after: async (change, report) => {
-        if (report.meaningful && report.significance !== "noise") return;
+        if (shouldAnalyzeChange(report, forceAnalyze)) return;
         await db.changes.mark(claimed.userId, change.id, {
           summary: report.summary,
           significance: report.significance,
@@ -132,7 +145,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     const meaningful: AnalysisChange[] = [];
     for (const change of targets) {
       const scout = await scoutFor(db, claimed.userId, change.id, scouted);
-      if (scout.meaningful && scout.significance !== "noise") meaningful.push(change);
+      if (shouldAnalyzeChange(scout, forceAnalyze)) meaningful.push(change);
     }
     await runAgentPass({
       changes: meaningful,

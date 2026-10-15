@@ -1,6 +1,7 @@
 export interface LLMRequest {
   system?: string;
   user: string;
+  json?: boolean;
 }
 
 export interface LLMResponse {
@@ -41,6 +42,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
           ...(request.system ? [{ role: "system", content: request.system }] : []),
           { role: "user", content: request.user },
         ],
+        ...(request.json ? { response_format: { type: "json_object" } } : {}),
       }),
     });
     if (!response.ok) {

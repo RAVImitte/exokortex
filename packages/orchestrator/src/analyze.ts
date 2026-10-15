@@ -14,6 +14,14 @@ const TEXT_LIMIT = 6_000;
 
 export const analystContextFiles = ["README.md", "package.json", "pyproject.toml", "Cargo.toml"];
 
+export function shouldAnalyzeChange(
+  report: { meaningful: boolean; significance: string },
+  force = false,
+): boolean {
+  if (force) return true;
+  return report.meaningful && report.significance !== "noise";
+}
+
 export interface AnalysisChange {
   id: string;
   repositoryName: string;
@@ -93,11 +101,12 @@ async function ask<T>(
   user: string,
   schema: Parameters<typeof parseAgentOutput<T>>[0],
 ): Promise<T> {
-  const first = await llm.generate({ system, user });
+  const first = await llm.generate({ system, user, json: true });
   return parseAgentOutput(schema, first.text, async (error) => {
     const second = await llm.generate({
       system,
-      user: `${user}\n\nThe previous reply was invalid: ${error}\nReply with JSON only.`,
+      user: `${user}\n\nThe previous reply was invalid: ${error}\nReply with one JSON object. Keep every string under 200 characters.`,
+      json: true,
     });
     return second.text;
   });

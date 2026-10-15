@@ -3,6 +3,7 @@ export {
   analystContextFiles,
   runAgentPass,
   scoutChange,
+  shouldAnalyzeChange,
   type AnalysisChange,
   type AnalysisHooks,
 } from "./analyze.js";

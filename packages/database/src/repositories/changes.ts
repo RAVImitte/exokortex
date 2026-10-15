@@ -25,6 +25,26 @@ export class ChangeEventRepository {
     return (result.meta.changes ?? 0) > 0 ? "created" : "exists";
   }
 
+  async get(userId: string, changeId: string): Promise<ChangeEventRecord | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM change_events WHERE id = ? AND user_id = ?")
+      .bind(changeId, userId)
+      .first<ChangeEventRow>();
+    return row ? toChangeEvent(row) : null;
+  }
+
+  async reopen(userId: string, changeId: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE change_events
+         SET status = 'open', processed_at = NULL
+         WHERE id = ? AND user_id = ? AND status = 'ignored'`,
+      )
+      .bind(changeId, userId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
   async listOpen(userId: string, repositoryId?: string): Promise<ChangeEventRecord[]> {
     const statement = repositoryId
       ? this.db

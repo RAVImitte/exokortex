@@ -1,6 +1,12 @@
 import type { LLMProvider } from "@exokortex/llm";
 import { describe, expect, it } from "vitest";
-import { analyzeChange, runAgentPass, scoutChange, type AnalysisChange } from "./analyze.js";
+import {
+  analyzeChange,
+  runAgentPass,
+  scoutChange,
+  shouldAnalyzeChange,
+  type AnalysisChange,
+} from "./analyze.js";
 
 const change: AnalysisChange = {
   id: "chg_1",
@@ -21,6 +27,12 @@ function llm(replies: string[]): LLMProvider {
 }
 
 describe("scout and analyst", () => {
+  it("lets a forced pass continue after a noise classification", () => {
+    const noise = { meaningful: false, significance: "noise" };
+    expect(shouldAnalyzeChange(noise)).toBe(false);
+    expect(shouldAnalyzeChange(noise, true)).toBe(true);
+  });
+
   it("keeps a noise classification and skips a second agent when asked", async () => {
     const report = await scoutChange({
       llm: llm([

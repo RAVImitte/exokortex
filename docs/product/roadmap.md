@@ -12,11 +12,11 @@ Status words: **Implemented**, **Partially implemented**, **Planned**, **Not imp
 
 ## Phase 2 — LLM abstraction
 
-**Partially implemented.** An OpenAI-compatible client, encrypted `llm_configs`, and a test call that expects the word `pong` are in place. Agents do not call the client yet.
+**Implemented.** An OpenAI-compatible client, encrypted `llm_configs`, and a test call that expects the word `pong` are in place. Scout and Analyst call that client. Agent calls request a JSON object.
 
 ## Phase 3 — Scout and Analyst
 
-**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Analyst explains the repository from the README and manifests. Both replies are validated JSON. Curator does not run. A scan with no new SHA still completes without calling a model. An open change with no saved LLM key fails the job until a key is saved.
+**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Activity can send one noise change to Analyst. Analyst explains the repository from the README and manifests. Both replies are validated JSON. Curator does not run. A scan with no new SHA still completes without calling a model. An open change with no saved LLM key fails the job until a key is saved.
 
 ## Phase 4 — Curator and approval
 

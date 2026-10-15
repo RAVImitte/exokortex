@@ -34,6 +34,10 @@ export function manualScanKey(userId: string, now: Date): string {
   return `scan:${userId}:manual:${minuteBucket(now)}`;
 }
 
+export function forceAnalyzeKey(userId: string, changeId: string, now: Date): string {
+  return `scan:${userId}:force:${changeId}:${now.toISOString()}`;
+}
+
 export function isLockExpired(
   lockedAt: string,
   now: Date,
