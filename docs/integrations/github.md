@@ -27,13 +27,20 @@ Subscribe to these events:
 
 While `pnpm dev` is running, the browser origin is http://127.0.0.1:5173 and the Worker is http://127.0.0.1:8787.
 
-| GitHub field   | Local value                                                           |
-| -------------- | --------------------------------------------------------------------- |
-| Callback URL   | `http://127.0.0.1:8787/api/github/callback`                           |
-| Webhook URL    | See the tunnel section. GitHub cannot call `127.0.0.1`.               |
-| Webhook secret | A long random string. The same value goes in `GITHUB_WEBHOOK_SECRET`. |
+Leave **Request user authorization (OAuth) during installation** unchecked. GitHub then shows a **Setup URL**. That is where the browser goes after install, with `installation_id` and `state`.
 
-Setup URL can stay empty. Expire user authorization tokens on install is fine.
+| GitHub field   | Local value                                             |
+| -------------- | ------------------------------------------------------- |
+| Setup URL      | `http://127.0.0.1:8787/api/github/callback`             |
+| Callback URL   | Leave empty. This is only the OAuth redirect.           |
+| Webhook URL    | See the tunnel section. GitHub cannot call `127.0.0.1`. |
+| Webhook secret | A long random string. Same value as `GITHUB_WEBHOOK_SECRET`. |
+
+Check **Redirect on update** so adding or removing repositories hits the Setup URL again.
+
+If OAuth during installation is already checked, GitHub hides the Setup URL. Put `http://127.0.0.1:8787/api/github/callback` in **Callback URL** instead.
+
+`APP_BASE_URL` in `.dev.vars` (`http://127.0.0.1:5173`) is not a GitHub field. After the Worker stores the installation, it sends the browser there, to `/repositories`.
 
 After GitHub shows the App’s numeric id, slug, and a PEM private key, put them in `apps/worker/.dev.vars`:
 
