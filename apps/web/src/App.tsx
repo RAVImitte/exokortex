@@ -9,7 +9,8 @@ import { AiPage } from "./pages/AiPage.js";
 import { ConnectionsPage } from "./pages/ConnectionsPage.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
 import { LoginPage } from "./pages/LoginPage.js";
-import { PlannedPage } from "./pages/PlannedPage.js";
+import { ApprovalsPage } from "./pages/ApprovalsPage.js";
+import { ProjectsPage } from "./pages/ProjectsPage.js";
 import { RepositoriesPage } from "./pages/RepositoriesPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 
@@ -68,8 +69,8 @@ function AppRoutes() {
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/ai" element={<AiPage />} />
       <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/projects" element={<PlannedPage title="Projects" />} />
-      <Route path="/approvals" element={<PlannedPage title="Approvals" />} />
+      <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/approvals" element={<ApprovalsPage />} />
     </Routes>
   );
 }

@@ -55,7 +55,7 @@ export async function scoutChange(input: {
     listing || "(none listed)",
     'Reply with JSON: {"meaningful":boolean,"significance":"noise"|"low"|"high","summary":string,"evidence":[{"path":string,"status":string,"note":string}]}',
   ].join("\n");
-  return ask(input.llm, scoutPrompt, user, scoutReport);
+  return askAgent(input.llm, scoutPrompt, user, scoutReport);
 }
 
 export async function analyzeChange(input: {
@@ -74,7 +74,7 @@ export async function analyzeChange(input: {
     excerpts || "(no files could be read)",
     'Reply with JSON: {"purpose":string,"architecture":string,"technologies":string[],"relationships":string[],"evidence":[{"source":string,"quote":string}]}',
   ].join("\n");
-  return ask(input.llm, analystPrompt, user, analystReport);
+  return askAgent(input.llm, analystPrompt, user, analystReport);
 }
 
 export async function runAgentPass<T>(input: {
@@ -95,7 +95,7 @@ export async function runAgentPass<T>(input: {
   return count;
 }
 
-async function ask<T>(
+export async function askAgent<T>(
   llm: LLMProvider,
   system: string,
   user: string,

@@ -1,6 +1,6 @@
 # Portfolio Curator
 
-Status: **Planned**. The prompt is loaded from `packages/agents/src/prompts.ts`. The JSON shape is validated with Zod in `packages/agents/src/schemas.ts`.
+Status: **Implemented** after Analyst has stored a report. Curator compares that report with the portfolio project list. `NEW_PROJECT` and `UPDATED_PROJECT` create a pending approval and do not create or edit a project. `UNCHANGED` and `IGNORE` finish the workflow. A follow-up question is sent back to Analyst at most 5 times. Approving a new project creates the registry row. The Portfolio Engineer does not run.
 
 You are Portfolio Curator for ExoKortex.
 Compare a discovered repository with the canonical portfolio project registry.

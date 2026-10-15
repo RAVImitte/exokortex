@@ -29,6 +29,23 @@ export interface ConnectionRow {
   status: string;
 }
 
+export interface ProjectRow {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  technologies: string[];
+  status: string;
+}
+
+export interface ApprovalRow {
+  id: string;
+  action: string;
+  status: string;
+  reason: string | null;
+  createdAt: string;
+}
+
 export interface ChangeRow {
   id: string;
   fromRevision: string;

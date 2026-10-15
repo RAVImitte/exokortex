@@ -81,6 +81,39 @@ export class ChangeEventRepository {
       .run();
   }
 
+  async listReadyForCurator(
+    userId: string,
+    repositoryId?: string,
+  ): Promise<ChangeEventRecord[]> {
+    const statement = repositoryId
+      ? this.db
+          .prepare(
+            `SELECT c.* FROM change_events c
+             WHERE c.user_id = ? AND c.repository_id = ? AND c.status = 'analyzed'
+             AND NOT EXISTS (
+               SELECT 1 FROM agent_runs a
+               WHERE a.change_event_id = c.id AND a.user_id = c.user_id
+                 AND a.agent_name = 'curator' AND a.status = 'completed'
+             )
+             ORDER BY c.created_at LIMIT 20`,
+          )
+          .bind(userId, repositoryId)
+      : this.db
+          .prepare(
+            `SELECT c.* FROM change_events c
+             WHERE c.user_id = ? AND c.status = 'analyzed'
+             AND NOT EXISTS (
+               SELECT 1 FROM agent_runs a
+               WHERE a.change_event_id = c.id AND a.user_id = c.user_id
+                 AND a.agent_name = 'curator' AND a.status = 'completed'
+             )
+             ORDER BY c.created_at LIMIT 20`,
+          )
+          .bind(userId);
+    const rows = await statement.all<ChangeEventRow>();
+    return rows.results.map(toChangeEvent);
+  }
+
   async list(userId: string, limit = 50): Promise<ChangeEventRecord[]> {
     const rows = await this.db
       .prepare("SELECT * FROM change_events WHERE user_id = ? ORDER BY created_at DESC LIMIT ?")

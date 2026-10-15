@@ -68,6 +68,8 @@ describe("workflow transitions", () => {
   it("allows the scan path", () => {
     expect(assertTransition("SCAN_PENDING", "SCANNING")).toBe("SCANNING");
     expect(assertTransition("SCANNING", "COMPLETED")).toBe("COMPLETED");
+    expect(assertTransition("SCANNING", "CURATING")).toBe("CURATING");
+    expect(assertTransition("CURATING", "PENDING_APPROVAL")).toBe("PENDING_APPROVAL");
   });
 
   it("rejects an illegal transition", () => {

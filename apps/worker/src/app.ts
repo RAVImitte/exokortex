@@ -4,6 +4,7 @@ import { onError } from "./http/errors.js";
 import { requireUser } from "./http/require-user.js";
 import type { AppBindings } from "./http/types.js";
 import { registerAccountRoutes } from "./routes/account.js";
+import { registerApprovalRoutes } from "./routes/approvals.js";
 import { registerGitHubRoutes } from "./routes/github.js";
 import { registerLlmRoutes } from "./routes/llm.js";
 import { registerRepositoryRoutes } from "./routes/repositories.js";
@@ -24,6 +25,7 @@ export function createApp(): Hono<AppBindings> {
   registerAccountRoutes(app);
   registerGitHubRoutes(app);
   registerRepositoryRoutes(app);
+  registerApprovalRoutes(app);
   registerLlmRoutes(app);
   return app;
 }

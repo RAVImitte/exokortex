@@ -16,11 +16,11 @@ Status words: **Implemented**, **Partially implemented**, **Planned**, **Not imp
 
 ## Phase 3 — Scout and Analyst
 
-**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Activity can send one noise change to Analyst. Analyst explains the repository from the README and manifests. Both replies are validated JSON. Curator does not run. A scan with no new SHA still completes without calling a model. An open change with no saved LLM key fails the job until a key is saved.
+**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Activity can send one noise change to Analyst. Analyst explains the repository from the README and manifests. Both replies are validated JSON. A scan with no new SHA still completes without calling a model, unless an analyzed change is still waiting for Curator. An open change with no saved LLM key fails the job until a key is saved.
 
 ## Phase 4 — Curator and approval
 
-**Planned.** Workflow states include `CURATING` and `PENDING_APPROVAL`. The Projects and Approvals screens say so. A new project is never auto-approved.
+**Partially implemented.** After Analyst, Curator classifies the repository against the portfolio project list. A new or updated project waits on the Approvals screen. Approving a new project creates it. Rejecting records the decision. The Portfolio Engineer does not run. Curator may ask Analyst up to 5 follow-up questions.
 
 ## Phase 5 — Portfolio Engineer
 

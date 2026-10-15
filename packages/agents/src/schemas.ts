@@ -34,6 +34,12 @@ export const analystReport = z.object({
 
 export type AnalystReport = z.infer<typeof analystReport>;
 
+export const followupAnswer = z.object({
+  answer: z.string().min(1),
+});
+
+export type FollowupAnswer = z.infer<typeof followupAnswer>;
+
 export const curatorClassification = z.object({
   classification: z.enum(["UNCHANGED", "UPDATED_PROJECT", "NEW_PROJECT", "IGNORE"]),
   projectSlug: z.string().nullable(),

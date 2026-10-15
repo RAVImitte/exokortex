@@ -1,5 +1,5 @@
 import { scoutReport, type ScoutReport } from "@exokortex/agents";
-import { limits } from "@exokortex/core";
+import { limits, type WorkflowState } from "@exokortex/core";
 import { Database } from "@exokortex/database";
 import { GitHubProvider } from "@exokortex/github";
 import { maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex/jobs";
@@ -7,6 +7,9 @@ import { OpenAICompatibleProvider, type LLMProvider } from "@exokortex/llm";
 import {
   analyzeChange,
   analystContextFiles,
+  approvalAction,
+  curateWithFollowups,
+  parseAnalystReport,
   runAgentPass,
   runUserScan,
   scoutChange,
@@ -90,7 +93,11 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       now,
     });
     const open = await db.changes.listOpen(claimed.userId, payload.repositoryId);
-    if (open.length === 0) {
+    const waiting =
+      open.length === 0
+        ? await db.changes.listReadyForCurator(claimed.userId, payload.repositoryId)
+        : [];
+    if (open.length === 0 && waiting.length === 0) {
       await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
       await db.jobs.complete(jobId, now);
       log("info", "scan completed", { userId: claimed.userId, jobId, ...summary });
@@ -98,6 +105,27 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     }
     const llm = await userLlm(env, db, claimed.userId);
     const repos = await db.repos.list(claimed.userId);
+    if (open.length === 0) {
+      await curateReady(db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
+      const pending = claimed.workflowId
+        ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
+        : [];
+      await move(
+        db,
+        claimed.userId,
+        claimed.workflowId,
+        pending.length > 0 ? "PENDING_APPROVAL" : "COMPLETED",
+        now,
+      );
+      await db.jobs.complete(jobId, now);
+      log("info", "scan completed", {
+        userId: claimed.userId,
+        jobId,
+        ...summary,
+        pendingApprovals: pending.length,
+      });
+      return;
+    }
     const targets = open.flatMap((change) => {
       const repo = repos.find((item) => item.id === change.repositoryId);
       if (!repo) return [];
@@ -179,13 +207,24 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         });
       },
     });
-    await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
+    await curateReady(db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
+    const pending = claimed.workflowId
+      ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
+      : [];
+    await move(
+      db,
+      claimed.userId,
+      claimed.workflowId,
+      pending.length > 0 ? "PENDING_APPROVAL" : "COMPLETED",
+      now,
+    );
     await db.jobs.complete(jobId, now);
     log("info", "scan completed", {
       userId: claimed.userId,
       jobId,
       ...summary,
       analyzed: targets.length,
+      pendingApprovals: pending.length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "scan failed";
@@ -207,11 +246,70 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
   }
 }
 
+async function curateReady(
+  db: Database,
+  llm: LLMProvider,
+  userId: string,
+  workflowId: string | null,
+  repositoryId: string | undefined,
+  now: string,
+): Promise<void> {
+  const ready = await db.changes.listReadyForCurator(userId, repositoryId);
+  if (ready.length === 0) return;
+  await move(db, userId, workflowId, "CURATING", now);
+  const projects = await db.projects.list(userId);
+  const repos = await db.repos.list(userId);
+  for (const change of ready) {
+    const analystRaw = await db.agents.latestOutput(userId, change.id, "analyst");
+    if (!analystRaw) continue;
+    const analyst = parseAnalystReport(analystRaw);
+    const repo = repos.find((item) => item.id === change.repositoryId);
+    const report = await curateWithFollowups({
+      llm,
+      change: {
+        id: change.id,
+        repositoryName: repo?.name ?? "repository",
+        defaultBranch: repo?.defaultBranch ?? "main",
+        fromRevision: change.fromRevision,
+        toRevision: change.toRevision,
+      },
+      analyst,
+      projects: projects.map((project) => ({
+        slug: project.slug,
+        name: project.name,
+        description: project.description,
+      })),
+      maxFollowups: limits.maxCuratorFollowups,
+    });
+    await db.agents.complete({
+      userId,
+      changeEventId: change.id,
+      agentName: "curator",
+      outputJson: JSON.stringify(report),
+      now,
+    });
+    const action = approvalAction(report.classification);
+    if (!action || (await db.approvals.findByChange(userId, change.id))) continue;
+    const matched = report.projectSlug
+      ? projects.find((project) => project.slug === report.projectSlug)
+      : undefined;
+    await db.approvals.create({
+      userId,
+      projectId: matched?.id ?? null,
+      changeEventId: change.id,
+      workflowId,
+      action,
+      reason: report.reason,
+      now,
+    });
+  }
+}
+
 async function move(
   db: Database,
   userId: string,
   workflowId: string | null,
-  to: "SCOUTING" | "ANALYZING" | "COMPLETED",
+  to: WorkflowState,
   now: string,
 ): Promise<void> {
   if (!workflowId) return;
