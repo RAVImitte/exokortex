@@ -1,10 +1,23 @@
+import { Activity, Bot, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../api/client.js";
+import { api, messageOf } from "../api/client.js";
 import type { ChangeRow } from "../api/types.js";
+import { AnimatedItem, AnimatedList } from "../ui/AnimatedList.js";
+import { Button } from "../ui/Button.js";
+import { ChangeCard, ChangeDot } from "../ui/ChangeCard.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
+import { Segmented } from "../ui/Segmented.js";
+import { SkeletonCards } from "../ui/Skeleton.js";
+import { useToast } from "../ui/Toast.js";
+
+type Filter = "all" | "open" | "analyzed" | "ignored";
 
 export function ActivityPage() {
-  const [changes, setChanges] = useState<ChangeRow[]>([]);
-  const [status, setStatus] = useState("");
+  const [changes, setChanges] = useState<ChangeRow[] | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [busy, setBusy] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     api<{ changes: ChangeRow[] }>("/api/changes")
@@ -12,60 +25,94 @@ export function ActivityPage() {
       .catch(() => setChanges([]));
   }, []);
 
-  async function analyze(changeId: string) {
-    setStatus("");
+  async function run(changeId: string, step: "analyze" | "curate") {
+    setBusy(changeId);
     try {
-      await api(`/api/changes/${changeId}/analyze`, { method: "POST" });
-      setStatus("Analysis queued.");
+      await api(`/api/changes/${changeId}/${step}`, { method: "POST" });
+      toast.success(
+        step === "analyze"
+          ? "Analysis queued."
+          : "Curator queued. Open Approvals after it finishes.",
+      );
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Analyze failed");
+      toast.error(messageOf(err, step === "analyze" ? "Analyze failed" : "Curator failed"));
+    } finally {
+      setBusy(null);
     }
   }
 
-  async function curate(changeId: string) {
-    setStatus("");
-    try {
-      await api(`/api/changes/${changeId}/curate`, { method: "POST" });
-      setStatus("Curator queued. Open Approvals after it finishes.");
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Curator failed");
-    }
-  }
+  const visible = changes?.filter((change) => filter === "all" || change.status === filter) ?? [];
 
   return (
     <section>
-      <h1>Activity</h1>
-      {changes.length === 0 ? (
-        <p className="muted">No change events yet. The first scan only records a baseline.</p>
-      ) : null}
-      <ul>
-        {changes.map((change) => (
-          <li key={change.id}>
-            {change.repositoryName ? `${change.repositoryName} · ` : ""}
-            {change.fromRevision.slice(0, 7)} → {change.toRevision.slice(0, 7)}
-            {change.significance ? ` · ${change.significance}` : ""} · {change.status}
-            {change.classification ? ` · ${change.classification}` : ""} ·{" "}
-            {new Date(change.createdAt).toLocaleString()}
-            {change.summary ? <div>{change.summary}</div> : null}
-            {change.status === "ignored" ||
-            (change.status === "open" && change.significance === "noise") ? (
-              <div>
-                <button className="ghost" type="button" onClick={() => void analyze(change.id)}>
-                  Run analysis
-                </button>
-              </div>
-            ) : null}
-            {change.status === "analyzed" ? (
-              <div>
-                <button className="ghost" type="button" onClick={() => void curate(change.id)}>
-                  Run curator
-                </button>
-              </div>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {status ? <p>{status}</p> : null}
+      <PageHeader
+        title="Activity"
+        description="Every change ExoKortex has seen, and what the agents made of it."
+        actions={
+          <Segmented
+            label="Filter activity"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all", label: "All" },
+              { value: "open", label: "Open" },
+              { value: "analyzed", label: "Analyzed" },
+              { value: "ignored", label: "Ignored" },
+            ]}
+          />
+        }
+      />
+      {changes === null ? (
+        <SkeletonCards count={4} />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={Activity}
+          title={changes.length === 0 ? "No changes yet" : "Nothing here"}
+        >
+          {changes.length === 0
+            ? "The first scan only records a baseline. A later scan that sees a new revision adds a change here."
+            : "No changes match this filter."}
+        </EmptyState>
+      ) : (
+        <AnimatedList key={filter} className="timeline">
+          {visible.map((change) => {
+            const canAnalyze =
+              change.status === "ignored" ||
+              (change.status === "open" && change.significance === "noise");
+            return (
+              <AnimatedItem key={change.id} className="timeline-item">
+                <ChangeDot status={change.status} />
+                <ChangeCard
+                  {...change}
+                  actions={
+                    canAnalyze ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={Sparkles}
+                        loading={busy === change.id}
+                        onClick={() => void run(change.id, "analyze")}
+                      >
+                        Run analysis
+                      </Button>
+                    ) : change.status === "analyzed" ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={Bot}
+                        loading={busy === change.id}
+                        onClick={() => void run(change.id, "curate")}
+                      >
+                        Run curator
+                      </Button>
+                    ) : null
+                  }
+                />
+              </AnimatedItem>
+            );
+          })}
+        </AnimatedList>
+      )}
     </section>
   );
 }

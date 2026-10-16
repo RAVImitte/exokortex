@@ -81,10 +81,7 @@ export class ChangeEventRepository {
       .run();
   }
 
-  async listReadyForCurator(
-    userId: string,
-    repositoryId?: string,
-  ): Promise<ChangeEventRecord[]> {
+  async listReadyForCurator(userId: string, repositoryId?: string): Promise<ChangeEventRecord[]> {
     const statement = repositoryId
       ? this.db
           .prepare(

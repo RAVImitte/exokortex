@@ -1,12 +1,28 @@
-import { useEffect, useState } from "react";
-import { api } from "../api/client.js";
+import { Check, ExternalLink, FolderGit2, Plug, RefreshCw, Search } from "lucide-react";
+import { motion } from "motion/react";
+import { useEffect, useState, type FormEvent } from "react";
+import { api, messageOf } from "../api/client.js";
 import type { RepositoryRow } from "../api/types.js";
+import { AnimatedItem, AnimatedList } from "../ui/AnimatedList.js";
+import { Button, ButtonLink, IconButton } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { Input } from "../ui/Field.js";
+import { PageHeader } from "../ui/PageHeader.js";
+import { Segmented, type SegmentOption } from "../ui/Segmented.js";
+import { SkeletonCards } from "../ui/Skeleton.js";
+import { useToast } from "../ui/Toast.js";
+import { providerMeta, useConnectedToast } from "../ui/providers.js";
+
+type Role = "SOURCE" | "PORTFOLIO" | "EXCLUDED";
+type Filter = "ALL" | Role;
 
 export function RepositoriesPage() {
-  const [repos, setRepos] = useState<RepositoryRow[]>([]);
-  const [branches, setBranches] = useState<Record<string, string>>({});
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [repos, setRepos] = useState<RepositoryRow[] | null>(null);
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [query, setQuery] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const toast = useToast();
+  useConnectedToast();
 
   async function load() {
     const body = await api<{ repositories: RepositoryRow[] }>("/api/repositories");
@@ -14,108 +30,235 @@ export function RepositoriesPage() {
   }
 
   useEffect(() => {
-    load().catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load"));
-  }, []);
+    load().catch((err: unknown) => {
+      setRepos([]);
+      toast.error(messageOf(err, "Failed to load repositories"));
+    });
+  }, [toast]);
 
-  async function setRole(id: string, role: string) {
-    setMessage("");
-    await api(`/api/repositories/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
-    await load();
+  async function setRole(repo: RepositoryRow, role: Role) {
+    if (repo.role === role) return;
+    const before = repos;
+    setRepos(
+      (current) =>
+        current?.map((item) => {
+          if (item.id === repo.id) return { ...item, role };
+          if (role === "PORTFOLIO" && item.role === "PORTFOLIO") return { ...item, role: "SOURCE" };
+          return item;
+        }) ?? null,
+    );
+    try {
+      await api(`/api/repositories/${repo.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      });
+      if (role === "PORTFOLIO") toast.success(`${repo.name} is now your portfolio.`);
+      await load();
+    } catch (err) {
+      setRepos(before);
+      toast.error(messageOf(err, "Could not change the role"));
+    }
   }
 
-  async function saveBranch(repo: RepositoryRow) {
-    const defaultBranch = (branches[repo.id] ?? repo.defaultBranch ?? "").trim();
-    setMessage("");
-    setError("");
+  async function scan() {
+    setScanning(true);
+    try {
+      await api("/api/scans", { method: "POST" });
+      toast.success("Scan queued. Results appear in Activity.");
+    } catch (err) {
+      toast.error(messageOf(err, "Scan failed"));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  const count = (role: Role) => repos?.filter((repo) => repo.role === role).length ?? 0;
+  const needle = query.trim().toLowerCase();
+  const visible =
+    repos?.filter(
+      (repo) =>
+        (filter === "ALL" || repo.role === filter) &&
+        (!needle || repo.name.toLowerCase().includes(needle)),
+    ) ?? [];
+
+  return (
+    <section>
+      <PageHeader
+        title="Repositories"
+        description="Choose what ExoKortex watches. One GitHub repository is your portfolio."
+        actions={
+          <Button
+            variant="primary"
+            icon={RefreshCw}
+            loading={scanning}
+            disabled={!repos || repos.length === 0}
+            onClick={() => void scan()}
+          >
+            Scan now
+          </Button>
+        }
+      />
+      {repos === null ? (
+        <SkeletonCards count={4} height={64} />
+      ) : repos.length === 0 ? (
+        <EmptyState
+          icon={FolderGit2}
+          title="No repositories yet"
+          action={
+            <ButtonLink to="/connections" variant="primary" icon={Plug}>
+              Connect a source
+            </ButtonLink>
+          }
+        >
+          Connect GitHub, Hugging Face, Kaggle, or Google and your repositories appear here.
+        </EmptyState>
+      ) : (
+        <>
+          <div className="toolbar">
+            <Segmented
+              label="Filter by role"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: "ALL", label: `All ${repos.length}` },
+                { value: "SOURCE", label: `Source ${count("SOURCE")}` },
+                { value: "PORTFOLIO", label: `Portfolio ${count("PORTFOLIO")}` },
+                { value: "EXCLUDED", label: `Excluded ${count("EXCLUDED")}` },
+              ]}
+            />
+            <label className="search">
+              <Search size={15} />
+              <span className="sr-only">Search repositories</span>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search repositories"
+              />
+            </label>
+          </div>
+          {visible.length === 0 ? (
+            <EmptyState icon={Search} title="No matches">
+              No repositories match this filter.
+            </EmptyState>
+          ) : (
+            <AnimatedList key={filter} className="card table-card">
+              {visible.map((repo) => (
+                <AnimatedItem key={repo.id}>
+                  <RepoRow repo={repo} onRole={(role) => void setRole(repo, role)} onSaved={load} />
+                </AnimatedItem>
+              ))}
+            </AnimatedList>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function RepoRow({
+  repo,
+  onRole,
+  onSaved,
+}: {
+  repo: RepositoryRow;
+  onRole: (role: Role) => void;
+  onSaved: () => Promise<void>;
+}) {
+  const meta = providerMeta(repo.provider);
+  const Icon = meta.icon;
+  const github = !repo.provider || repo.provider === "github";
+  const options: SegmentOption<Role>[] = [
+    { value: "SOURCE", label: "Source" },
+    ...(github ? [{ value: "PORTFOLIO" as const, label: "Portfolio" }] : []),
+    { value: "EXCLUDED", label: "Excluded" },
+  ];
+
+  return (
+    <motion.div
+      layout="position"
+      className="repo-row"
+      style={{ opacity: repo.role === "EXCLUDED" ? 0.6 : 1 }}
+    >
+      <div className="repo-name">
+        <span className="provider-icon" title={meta.label}>
+          <Icon size={16} />
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <a href={repo.url} target="_blank" rel="noreferrer" title={repo.name}>
+            {repo.name}
+          </a>
+          <div className="subtle mono">{repo.lastRevision?.slice(0, 7) ?? "not scanned yet"}</div>
+        </div>
+      </div>
+      <div className="repo-meta">
+        {repo.role === "PORTFOLIO" ? (
+          <BranchForm repo={repo} onSaved={onSaved} />
+        ) : (
+          <span className="mono">{repo.defaultBranch ?? ""}</span>
+        )}
+      </div>
+      <Segmented
+        label={`${repo.name} role`}
+        value={repo.role as Role}
+        onChange={onRole}
+        options={options}
+      />
+    </motion.div>
+  );
+}
+
+function BranchForm({ repo, onSaved }: { repo: RepositoryRow; onSaved: () => Promise<void> }) {
+  const [branch, setBranch] = useState(repo.defaultBranch ?? "");
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+  const dirty = branch.trim() !== (repo.defaultBranch ?? "");
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    const defaultBranch = branch.trim();
+    setSaving(true);
     try {
       await api(`/api/repositories/${repo.id}`, {
         method: "PATCH",
         body: JSON.stringify({ defaultBranch }),
       });
-      setMessage(`Portfolio pull requests target ${defaultBranch}.`);
-      await load();
+      toast.success(`Portfolio pull requests target ${defaultBranch}.`);
+      await onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the branch");
-    }
-  }
-
-  async function scan() {
-    setMessage("");
-    try {
-      await api("/api/scans", { method: "POST" });
-      setMessage("Scan queued.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed");
+      toast.error(messageOf(err, "Could not save the branch"));
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
-    <section>
-      <h1>Repositories</h1>
-      <p>
-        <button type="button" onClick={() => void scan()}>
-          Scan now
-        </button>
-      </p>
-      {message ? <p>{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Branch</th>
-            <th>Revision</th>
-            <th>Role</th>
-          </tr>
-        </thead>
-        <tbody>
-          {repos.map((repo) => (
-            <tr key={repo.id}>
-              <td>
-                <a href={repo.url}>{repo.name}</a>
-              </td>
-              <td>
-                {repo.role === "PORTFOLIO" ? (
-                  <form
-                    className="branch"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void saveBranch(repo);
-                    }}
-                  >
-                    <input
-                      aria-label={`${repo.name} branch`}
-                      value={branches[repo.id] ?? repo.defaultBranch ?? ""}
-                      onChange={(event) =>
-                        setBranches((current) => ({ ...current, [repo.id]: event.target.value }))
-                      }
-                    />
-                    <button type="submit">Save</button>
-                  </form>
-                ) : (
-                  repo.defaultBranch
-                )}
-              </td>
-              <td className="muted">{repo.lastRevision?.slice(0, 7) ?? "not scanned"}</td>
-              <td>
-                <select
-                  value={repo.role}
-                  onChange={(event) => void setRole(repo.id, event.target.value)}
-                >
-                  <option value="SOURCE">Source</option>
-                  {repo.provider && repo.provider !== "github" ? null : (
-                    <option value="PORTFOLIO">Portfolio</option>
-                  )}
-                  <option value="EXCLUDED">Excluded</option>
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {repos.length === 0 ? (
-        <p className="muted">No repositories yet. Connect a source first.</p>
+    <form className="branch-form" onSubmit={(event) => void save(event)}>
+      <Input
+        aria-label={`${repo.name} portfolio branch`}
+        title="Portfolio pull requests target this branch"
+        value={branch}
+        onChange={(event) => setBranch(event.target.value)}
+      />
+      {dirty ? (
+        <IconButton
+          type="submit"
+          icon={Check}
+          label="Save branch"
+          size="sm"
+          variant="primary"
+          disabled={saving || !branch.trim()}
+        />
       ) : null}
-    </section>
+      <a
+        className="btn btn-ghost btn-sm btn-icon"
+        href={repo.url}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open repository"
+        title="Open repository"
+      >
+        <ExternalLink size={14} />
+      </a>
+    </form>
   );
 }

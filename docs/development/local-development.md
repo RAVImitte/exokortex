@@ -34,11 +34,11 @@ Open http://localhost:5173 and sign in with any email. Port 8787 does not serve 
 
 ## What you can exercise
 
-1. Sign in. The dashboard counts repositories, projects, and approvals. Those last two stay at zero until later phases.
-2. Settings. Change timezone and scan frequency (weekly, biweekly, monthly).
-3. AI. Save an OpenAI-compatible base URL, model, and key, then choose Test LLM. The key is not returned by the API.
-4. Connections. Connect GitHub fails with “GitHub App is not configured” until the App secrets in [github.md](../integrations/github.md) are filled in. Hugging Face takes a read token and Kaggle takes an API token on the same page. Connect Google fails until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set. See [huggingface.md](../integrations/huggingface.md), [kaggle.md](../integrations/kaggle.md), and [google.md](../integrations/google.md). An empty token is rejected and nothing is stored.
-5. After a real install, a Hugging Face token, a Kaggle token, or a Google connection: repositories appear, you can mark one GitHub repository Portfolio and others Excluded, and Scan now queues a job per connection. The first scan stores revisions and does not create change events. Activity shows a change only after a later scan sees a different revision. Hugging Face, Kaggle, and Google rows cannot be the portfolio.
+1. Sign in. Home shows a setup checklist until a source is connected, an AI key is saved, a portfolio is marked, and the first scan has run. Below it are counts for repositories, projects, and approvals, plus recent activity. The sidebar badge shows waiting approvals.
+2. Settings. Change scan frequency (weekly, every 2 weeks, monthly) and timezone, and pick a theme. The theme also cycles from the button in the sidebar footer. It follows the system setting by default.
+3. AI model. Pick a preset (OpenAI, OpenRouter, Groq) or Custom, enter the model and key, then choose Test model. The key is not returned by the API, so enter it again whenever you save.
+4. Connections. Each provider has a card. Connect GitHub fails with “GitHub App is not configured” until the App secrets in [github.md](../integrations/github.md) are filled in. Hugging Face takes a read token and Kaggle takes an API token in a form that opens on the card. Connect Google Colab fails until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set. See [huggingface.md](../integrations/huggingface.md), [kaggle.md](../integrations/kaggle.md), and [google.md](../integrations/google.md). An empty token is rejected and nothing is stored. Disconnect asks for confirmation.
+5. Repositories. After a real install, a Hugging Face token, a Kaggle token, or a Google connection, repositories appear. Filter them by role or search by name. Mark one GitHub repository Portfolio and others Excluded, and Scan now queues a job per connection. The first scan stores revisions and does not create change events. Activity shows a change only after a later scan sees a different revision. Hugging Face, Kaggle, and Google rows cannot be the portfolio.
 
 ## Local data
 

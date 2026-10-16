@@ -6,6 +6,8 @@
 - Hugging Face, Kaggle, and Google Colab are source connections. The portfolio stays one GitHub repository.
 - Approval-waiting and pull-request-opened mail when Resend is configured.
 - Clerk sign-in sends the session token and stores the primary email when `AUTH_MODE=clerk`.
+- Reworked dashboard: grouped sidebar with an approvals badge, mobile drawer, light and dark themes, a setup checklist on Home, provider cards on Connections, AI model presets, and Motion animations that respect reduced motion.
+- User guide, release readiness list, and feature ideas in `docs/`.
 
 ## 0.1.0
 

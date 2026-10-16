@@ -1,34 +1,77 @@
+import { FolderKanban, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../api/client.js";
+import { api, messageOf } from "../api/client.js";
 import type { ProjectRow } from "../api/types.js";
+import { AnimatedCell, AnimatedGrid } from "../ui/AnimatedList.js";
+import { Badge } from "../ui/Badge.js";
+import { ButtonLink } from "../ui/Button.js";
+import { EmptyState } from "../ui/EmptyState.js";
+import { PageHeader } from "../ui/PageHeader.js";
+import { Skeleton } from "../ui/Skeleton.js";
+import { useToast } from "../ui/Toast.js";
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [error, setError] = useState("");
+  const [projects, setProjects] = useState<ProjectRow[] | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     api<{ projects: ProjectRow[] }>("/api/projects")
       .then((body) => setProjects(body.projects))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load"));
-  }, []);
+      .catch((err: unknown) => {
+        setProjects([]);
+        toast.error(messageOf(err, "Failed to load projects"));
+      });
+  }, [toast]);
 
   return (
     <section>
-      <h1>Projects</h1>
-      {error ? <p>{error}</p> : null}
-      {projects.length === 0 ? (
-        <p className="muted">
-          No portfolio projects yet. A new project appears here after you approve it.
-        </p>
-      ) : null}
-      <ul>
-        {projects.map((project) => (
-          <li key={project.id}>
-            {project.name} · {project.slug}
-            {project.description ? <div>{project.description}</div> : null}
-          </li>
-        ))}
-      </ul>
+      <PageHeader
+        title="Projects"
+        description="The projects your portfolio shows. New ones arrive after you approve them."
+      />
+      {projects === null ? (
+        <div className="project-grid">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} height={140} radius={14} />
+          ))}
+        </div>
+      ) : projects.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="No portfolio projects yet"
+          action={
+            <ButtonLink to="/approvals" icon={Inbox}>
+              Open approvals
+            </ButtonLink>
+          }
+        >
+          A project appears here after Curator proposes it and you approve it.
+        </EmptyState>
+      ) : (
+        <AnimatedGrid className="project-grid">
+          {projects.map((project) => (
+            <AnimatedCell key={project.id}>
+              <article className="card card-interactive project-card">
+                <div className="spread">
+                  <h3>{project.name}</h3>
+                  <Badge>{project.status}</Badge>
+                </div>
+                <span className="subtle mono">{project.slug}</span>
+                {project.description ? <p>{project.description}</p> : null}
+                {project.technologies.length > 0 ? (
+                  <div className="cluster">
+                    {project.technologies.map((tech) => (
+                      <span key={tech} className="chip">
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            </AnimatedCell>
+          ))}
+        </AnimatedGrid>
+      )}
     </section>
   );
 }

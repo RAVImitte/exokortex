@@ -1,18 +1,10 @@
 import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import type { Me } from "../api/types.js";
-
-const links = [
-  ["/dashboard", "Dashboard"],
-  ["/repositories", "Repositories"],
-  ["/connections", "Connections"],
-  ["/activity", "Activity"],
-  ["/ai", "AI"],
-  ["/settings", "Settings"],
-  ["/projects", "Projects"],
-  ["/approvals", "Approvals"],
-] as const;
+import { DashboardProvider } from "../hooks/useDashboard.js";
+import { MobileNav } from "./MobileNav.js";
+import { Sidebar } from "./Sidebar.js";
 
 export function Shell({
   me,
@@ -25,39 +17,22 @@ export function Shell({
   account?: ReactNode;
   onSignOut?: () => void;
 }) {
-  return (
-    <div className="shell">
-      <nav>
-        <strong>ExoKortex</strong>
-        {links.map(([to, label]) => (
-          <NavLink key={to} to={to}>
-            {label}
-          </NavLink>
-        ))}
-        <SignOut onSignOut={onSignOut} />
-        {account}
-        {me ? <p className="muted">{me.email}</p> : null}
-      </nav>
-      <main>{children}</main>
-    </div>
-  );
-}
-
-function SignOut({ onSignOut }: { onSignOut?: () => void }) {
   const navigate = useNavigate();
+  const signOut =
+    onSignOut ??
+    (() => {
+      void api("/api/logout", { method: "POST" }).then(() => navigate(0));
+    });
+
   return (
-    <button
-      className="ghost"
-      type="button"
-      onClick={() => {
-        if (onSignOut) {
-          onSignOut();
-          return;
-        }
-        void api("/api/logout", { method: "POST" }).then(() => navigate(0));
-      }}
-    >
-      Sign out
-    </button>
+    <DashboardProvider>
+      <div className="app">
+        <Sidebar me={me} account={account} onSignOut={signOut} indicatorId="nav-indicator" />
+        <MobileNav me={me} account={account} onSignOut={signOut} />
+        <main className="main">
+          <div className="page">{children}</div>
+        </main>
+      </div>
+    </DashboardProvider>
   );
 }

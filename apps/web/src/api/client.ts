@@ -7,6 +7,10 @@ export class ApiError extends Error {
   }
 }
 
+export function messageOf(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 let sessionToken: (() => Promise<string | null>) | null = null;
 
 export function setSessionToken(getter: (() => Promise<string | null>) | null): void {

@@ -9,5 +9,5 @@ await mkdir(dist, { recursive: true });
 await rm(join(dist, "assets"), { recursive: true, force: true });
 await writeFile(
   index,
-  "<!doctype html><title>ExoKortex</title><p>This port is the API. Open the dashboard at <a href=\"http://localhost:5173\">http://localhost:5173</a>.</p>",
+  '<!doctype html><title>ExoKortex</title><p>This port is the API. Open the dashboard at <a href="http://localhost:5173">http://localhost:5173</a>.</p>',
 );
