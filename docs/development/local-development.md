@@ -23,12 +23,14 @@ pnpm dev
 
 `pnpm dev` starts two processes:
 
-| Process                        | URL                   | Role                                     |
-| ------------------------------ | --------------------- | ---------------------------------------- |
-| Vite (`@exokortex/web`)        | http://127.0.0.1:5173 | Dashboard. Proxies `/api` to the Worker. |
-| Wrangler (`@exokortex/worker`) | http://127.0.0.1:8787 | API, local D1, queue, and cron.          |
+| Process                        | URL                   | Role                                                                 |
+| ------------------------------ | --------------------- | -------------------------------------------------------------------- |
+| Vite (`@exokortex/web`)        | http://127.0.0.1:5173 | Dashboard with live reload. Proxies `/api` to the Worker.            |
+| Wrangler (`@exokortex/worker`) | http://127.0.0.1:8787 | Same dashboard from the latest web build, plus API, D1, queue, cron. |
 
-Open http://127.0.0.1:5173 and sign in with any email. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
+The Worker build runs before Wrangler starts, so http://127.0.0.1:8787 serves the dashboard instead of a placeholder. Sign in again on that origin. A session on port 5173 is not shared with port 8787.
+
+Open either URL and sign in with any email. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
 
 `APP_BASE_URL` in `.dev.vars` should stay `http://127.0.0.1:5173` so the GitHub install callback returns to the Vite app.
 
