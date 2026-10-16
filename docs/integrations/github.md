@@ -15,6 +15,8 @@ Create the App under your GitHub account or organization. Set these repository p
 | Pull requests | Write      | The Engineer opens a pull request. Nothing in ExoKortex merges it.                   |
 | Actions       | Read       | Read the portfolio’s CI result later.                                                |
 
+Portfolio pull requests use the branch saved on the portfolio repository. GitHub may still report a different default branch. A later discovery does not replace the portfolio branch.
+
 Leave other permissions at No access. If the App was created with Contents or Pull requests set to Read, change both to Read and write and save the App. GitHub then asks you to approve the new permissions on the existing installation. Until that approval, the installation stays Read and a pull request returns 403. Metadata stays Read.
 
 Subscribe to these events:

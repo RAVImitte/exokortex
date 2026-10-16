@@ -24,9 +24,11 @@ export {
   type EngineerProfile,
   type EngineerProject,
 } from "./engineer.js";
+export { approvalWaitingNotice, pullRequestOpenedNotice, type Notice } from "./notify.js";
 export {
   discoverPortfolioProfile,
   profileManifests,
+  projectDataFile,
   type PortfolioProfileDraft,
 } from "./portfolio.js";
 export { runUserScan, scanRepositories, type ScanSummary } from "./scan.js";

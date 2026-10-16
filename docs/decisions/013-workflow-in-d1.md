@@ -16,4 +16,4 @@ Cloudflare Workflows as the engine. An implicit status string with no transition
 
 ## Consequences
 
-The scan slice uses `SCAN_PENDING` → `SCANNING` → `COMPLETED` or `FAILED`. Later states exist so code cannot skip into them.
+Scans and agent jobs use `SCAN_PENDING` → `SCANNING` → `SCOUTING` → `ANALYZING` → `CURATING` → `PENDING_APPROVAL` or `COMPLETED`, then `ENGINEERING` → `COMPLETED`. `VALIDATING`, `WAITING_FOR_CI`, and `VERIFYING` remain unused. Illegal pairs still throw.

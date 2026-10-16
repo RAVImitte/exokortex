@@ -1,6 +1,6 @@
 # Reliability
 
-Status: **Implemented** for scans. Email and the later agent states are **Planned**.
+Status: **Implemented** for scans, agent jobs, and mail. A missing Resend key or a failed send is logged and does not fail the scan or the engineer job. `VALIDATING`, `WAITING_FOR_CI`, and `VERIFYING` stay unused.
 
 D1 is the source of truth. The queue delivers `{ jobId }` and may deliver it twice. The claim update matches `status = 'pending'`, so the second delivery no-ops.
 

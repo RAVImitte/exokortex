@@ -5,6 +5,7 @@ import {
   isLockExpired,
   manualScanKey,
   scanIdempotencyKey,
+  scheduledScanKey,
   shouldRetry,
 } from "./index.js";
 
@@ -26,6 +27,15 @@ describe("idempotency keys", () => {
     expect(manualScanKey("u", now)).toBe(manualScanKey("u", new Date("2026-10-16T02:49:59.000Z")));
     expect(manualScanKey("u", now)).not.toBe(
       manualScanKey("u", new Date("2026-10-16T02:50:00.000Z")),
+    );
+    expect(manualScanKey("u", now, "huggingface")).toBe(
+      "scan:u:manual:huggingface:2026-10-16T02:49",
+    );
+    expect(scheduledScanKey("u", "2026-10-16T00:00:00.000Z")).toBe(
+      "scan:u:scheduled:2026-10-16T00:00:00.000Z",
+    );
+    expect(scheduledScanKey("u", "2026-10-16T00:00:00.000Z", "huggingface")).toBe(
+      "scan:u:scheduled:huggingface:2026-10-16T00:00:00.000Z",
     );
   });
 

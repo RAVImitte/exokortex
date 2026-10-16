@@ -14,7 +14,17 @@ const links = [
   ["/approvals", "Approvals"],
 ] as const;
 
-export function Shell({ me, children }: { me?: Me; children: ReactNode }) {
+export function Shell({
+  me,
+  children,
+  account,
+  onSignOut,
+}: {
+  me?: Me;
+  children: ReactNode;
+  account?: ReactNode;
+  onSignOut?: () => void;
+}) {
   return (
     <div className="shell">
       <nav>
@@ -24,7 +34,8 @@ export function Shell({ me, children }: { me?: Me; children: ReactNode }) {
             {label}
           </NavLink>
         ))}
-        <SignOut />
+        <SignOut onSignOut={onSignOut} />
+        {account}
         {me ? <p className="muted">{me.email}</p> : null}
       </nav>
       <main>{children}</main>
@@ -32,13 +43,17 @@ export function Shell({ me, children }: { me?: Me; children: ReactNode }) {
   );
 }
 
-function SignOut() {
+function SignOut({ onSignOut }: { onSignOut?: () => void }) {
   const navigate = useNavigate();
   return (
     <button
       className="ghost"
       type="button"
       onClick={() => {
+        if (onSignOut) {
+          onSignOut();
+          return;
+        }
         void api("/api/logout", { method: "POST" }).then(() => navigate(0));
       }}
     >

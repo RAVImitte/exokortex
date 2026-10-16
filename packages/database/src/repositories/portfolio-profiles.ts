@@ -46,6 +46,13 @@ export class PortfolioProfileRepository {
     return row ? toProfile(row) : null;
   }
 
+  async remove(userId: string, repositoryId: string): Promise<void> {
+    await this.db
+      .prepare("DELETE FROM portfolio_profiles WHERE user_id = ? AND repository_id = ?")
+      .bind(userId, repositoryId)
+      .run();
+  }
+
   async save(input: {
     userId: string;
     repositoryId: string;

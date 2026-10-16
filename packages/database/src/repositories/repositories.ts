@@ -31,12 +31,14 @@ export class TrackedRepositoryRepository {
       .bind(input.userId, input.connectionId, input.externalId)
       .first<RepositoryRow>();
     if (existing) {
+      const defaultBranch =
+        existing.role === "PORTFOLIO" ? existing.default_branch : input.defaultBranch;
       await this.db
         .prepare(
           `UPDATE repositories SET name = ?, url = ?, default_branch = ?, updated_at = ?
            WHERE id = ? AND user_id = ?`,
         )
-        .bind(input.name, input.url, input.defaultBranch, now, existing.id, input.userId)
+        .bind(input.name, input.url, defaultBranch, now, existing.id, input.userId)
         .run();
       return {
         created: false,
@@ -44,7 +46,7 @@ export class TrackedRepositoryRepository {
           ...existing,
           name: input.name,
           url: input.url,
-          default_branch: input.defaultBranch,
+          default_branch: defaultBranch,
         }),
       };
     }
@@ -81,6 +83,23 @@ export class TrackedRepositoryRepository {
       .bind(userId)
       .all<RepositoryRow>();
     return rows.results.map(toRepository);
+  }
+
+  async setDefaultBranch(
+    userId: string,
+    repositoryId: string,
+    branch: string,
+    now = nowIso(),
+  ): Promise<RepositoryRecord | null> {
+    const existing = await this.find(userId, repositoryId);
+    if (!existing || existing.role !== "PORTFOLIO") return null;
+    await this.db
+      .prepare(
+        "UPDATE repositories SET default_branch = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+      )
+      .bind(branch, now, repositoryId, userId)
+      .run();
+    return this.find(userId, repositoryId);
   }
 
   async findByRole(userId: string, role: RepositoryRole): Promise<RepositoryRecord | null> {

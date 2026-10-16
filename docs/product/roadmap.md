@@ -1,6 +1,6 @@
 # Slice tracker
 
-This is the only progress list. A slice is done when its acceptance checks pass. Exactly one slice is **current**. Do not start a later slice early. When a slice finishes, update this file in the same change as the code.
+This is the only progress list. A slice is done when its acceptance checks pass. This list is finished, so no slice is current. Publishing is the checklist in [deployment.md](../development/deployment.md).
 
 Status words: **Done**, **Current**, **Later**.
 
@@ -82,24 +82,74 @@ Acceptance:
 
 ## S6 — Email
 
-**Current.**
+**Done.** Mail is sent only when `RESEND_API_KEY` and `EMAIL_FROM` are set. A missing key does not fail the scan or the engineer job.
 
 Entry: S5 acceptance checks pass.
 
-Notify when an approval is waiting and when a pull request is opened. Resend is named in the founding brief and is not wired. Write the steps at the start of this slice.
+Acceptance:
 
-## S7 — Providers
+- A pending approval sends one email to the user. The message names the repository and links to Approvals.
+- Opening a pull request sends one email with the pull request URL.
+- A rejection, an unchanged classification, and a noise skip do not send mail.
+- Sending mail never includes API keys or GitHub tokens.
 
-**Later.** One provider per slice, in this order: Hugging Face, then Kaggle, then Google.
+## S7 — Hugging Face
 
-Entry: S6 acceptance checks pass for the first provider. Each following provider starts when the previous provider's slice is done.
+**Done.** A read token discovers the account’s own models, datasets, and spaces. They are source repositories. The portfolio stays a GitHub repository.
 
-The stub that throws in `packages/source-providers` stays until that provider's slice starts.
+Entry: S6 acceptance checks pass.
 
-## S8 — Public beta
+Acceptance:
 
-**Later.**
+- Pasting a read token stores it encrypted. The API does not return the token.
+- Discovery stores that account’s models, datasets, and spaces. Repositories owned by an org are not included.
+- Those rows cannot be marked `PORTFOLIO`.
+- The first scan stores the commit SHA and writes no change event. A later differing SHA writes one event.
+- A scan for one connection does not call the other provider.
+- Scout, Analyst, Curator, approval, and the GitHub pull request stay the same path.
+- A rejection, an unchanged classification, and a noise skip still send no mail.
+
+## S8 — Kaggle
+
+**Done.** An API token discovers the account’s own datasets and notebooks. They are source repositories. The portfolio stays a GitHub repository.
+
+Entry: S7 acceptance checks pass.
+
+Acceptance:
+
+- Pasting an API token stores it encrypted. The API does not return the token.
+- Discovery stores that account’s datasets and notebooks. Another owner’s rows are skipped.
+- Those rows cannot be marked `PORTFOLIO`.
+- The first scan stores the version and writes no change event. A later version writes one event.
+- A dataset change lists files whose size differs. A notebook change names the source file.
+- A scan for one connection does not call the other providers.
+- Scout, Analyst, Curator, approval, and the GitHub pull request stay the same path.
+
+## S9 — Google
+
+**Done.** OAuth stores a refresh token and discovers Colab notebooks the account owns. They are source repositories. The portfolio stays a GitHub repository.
+
+Entry: S8 acceptance checks pass.
+
+Acceptance:
+
+- Connecting stores the refresh token encrypted. The API does not return it. Each scan mints an access token and does not store that token.
+- Discovery stores Colab notebooks owned by that account. Shared files owned by someone else are not included.
+- Those rows cannot be marked `PORTFOLIO`.
+- The first scan stores the Drive revision and writes no change event. A later revision writes one event naming the notebook.
+- A scan for one connection does not call the other providers.
+- Scout, Analyst, Curator, approval, and the GitHub pull request stay the same path.
+- Missing OAuth client settings fail the connect link and store nothing.
+
+## S10 — Public beta
+
+**Done.** Production sign-in is Clerk. Publishing stays the checklist in [deployment.md](../development/deployment.md). This slice does not add billing, auto-merge, or a second portfolio, and it does not publish the Worker.
 
 Entry: the provider slices you intend to ship are done.
 
-Turn Clerk on as the live auth mode, then follow the documented production deploy. This slice does not add billing, auto-merge, or a second portfolio.
+Acceptance:
+
+- Dev login stays refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
+- With Clerk enabled, API calls send the session token. The user row stores the primary email.
+- Sign out ends the Clerk session.
+- `APP_BASE_URL` is the only browser origin accepted for that session token.

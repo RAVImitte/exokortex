@@ -8,7 +8,7 @@ User credentials are never provided directly to LLM agents.
 
 ## Credential encryption
 
-**Implemented.** `ENCRYPTION_KEY` is 32 bytes, base64, and lives in a Worker secret or local `.dev.vars`. AES-GCM ciphertext includes a version prefix. GitHub installation tokens are minted per request and are not stored.
+**Implemented.** `ENCRYPTION_KEY` is 32 bytes, base64, and lives in a Worker secret or local `.dev.vars`. AES-GCM ciphertext includes a version prefix. GitHub installation tokens and Google access tokens are minted per request and are not stored. Hugging Face tokens, Kaggle tokens, and the Google refresh token are encrypted on connect and omitted from the connections API.
 
 ## GitHub permissions
 
@@ -22,7 +22,7 @@ Webhook bodies are checked with HMAC-SHA256 (`X-Hub-Signature-256`) before JSON 
 
 ## Sessions
 
-**Implemented.** Dev cookies are HttpOnly, `SameSite=Lax`, and HMAC-signed. The GitHub install `state` is the same seal, bound to the database user id, and expires in 15 minutes. Clerk verification is **Partially implemented** behind `AUTH_MODE=clerk`.
+**Implemented.** Dev cookies are HttpOnly, `SameSite=Lax`, and HMAC-signed. The GitHub install `state` is the same seal, bound to the database user id, and expires in 15 minutes. Clerk verification is **Implemented** when `AUTH_MODE=clerk`: the browser sends the session token, and `APP_BASE_URL` is the authorized origin.
 
 `SameSite=Lax` is the CSRF control for cookie-authenticated browser calls. There is no separate CSRF token. **Planned:** rate limiting. It is not in this slice.
 

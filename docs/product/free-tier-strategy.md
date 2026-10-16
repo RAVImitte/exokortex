@@ -1,6 +1,6 @@
 # Free-tier limits
 
-These limits are in `packages/core/src/limits.ts` and are **Implemented** as constants. Enforcement today is the repository cap during discovery. The rest apply when those features exist.
+These limits are in `packages/core/src/limits.ts`. Discovery enforces the repository cap. Curator follow-ups and job attempt counts are enforced. The portfolio-project cap is a constant and is not enforced when a project row is created.
 
 | Limit                                      | Value                           |
 | ------------------------------------------ | ------------------------------- |
@@ -16,4 +16,4 @@ One Worker serves the API and the static dashboard so the free tier stays a sing
 
 ExoKortex does not include model usage. You pay your LLM provider directly.
 
-Email (Resend), bot protection (Turnstile), and billing are **Planned** or out of scope. Billing is not a goal of the bootstrap.
+Email is sent through Resend when `RESEND_API_KEY` and `EMAIL_FROM` are set. Bot protection (Turnstile) is **Planned**. Billing is out of scope.

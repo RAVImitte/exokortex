@@ -10,4 +10,5 @@ export const publicPaths = new Set([
   "/api/logout",
   "/api/github/callback",
   "/api/github/webhook",
+  "/api/google/callback",
 ]);

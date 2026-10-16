@@ -2,15 +2,20 @@ import { scoutReport, type ScoutReport } from "@exokortex/agents";
 import { limits, type WorkflowState } from "@exokortex/core";
 import { Database } from "@exokortex/database";
 import { explainGitHubWriteError, GitHubProvider } from "@exokortex/github";
+import { GoogleProvider, googleAccessToken } from "@exokortex/google";
+import { HuggingFaceProvider } from "@exokortex/huggingface";
+import { KaggleProvider } from "@exokortex/kaggle";
 import { engineerKey, maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex/jobs";
 import { OpenAICompatibleProvider, type LLMProvider } from "@exokortex/llm";
 import {
   analyzeChange,
   analystContextFiles,
   approvalAction,
+  approvalWaitingNotice,
   portfolioTarget,
   curateWithFollowups,
   parseAnalystReport,
+  pullRequestOpenedNotice,
   runAgentPass,
   runUserScan,
   scoutChange,
@@ -20,8 +25,21 @@ import {
 } from "@exokortex/orchestrator";
 import { decryptString, importAesKey } from "@exokortex/security";
 import { log, nowIso } from "@exokortex/shared";
+import type { SourceProvider } from "@exokortex/source-providers";
 import type { Env, JobMessage } from "./env.js";
 import { runEngineerJob } from "./engineer.js";
+import { approvalsUrl, notify } from "./mail.js";
+
+export function isScanProvider(
+  provider: string | undefined,
+): provider is "github" | "huggingface" | "kaggle" | "google" {
+  return (
+    provider === "github" ||
+    provider === "huggingface" ||
+    provider === "kaggle" ||
+    provider === "google"
+  );
+}
 
 export function githubProvider(env: Env): GitHubProvider | null {
   if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) return null;
@@ -37,6 +55,7 @@ export async function enqueueScan(
   input: {
     userId: string;
     installationId: string;
+    provider?: string;
     repositoryId?: string;
     idempotencyKey: string;
     forceAnalyze?: boolean;
@@ -48,6 +67,7 @@ export async function enqueueScan(
     type: "scan",
     payload: {
       installationId: input.installationId,
+      provider: input.provider ?? "github",
       repositoryId: input.repositoryId,
       forceAnalyze: input.forceAnalyze === true,
     },
@@ -119,7 +139,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       }
       const provider = githubProvider(env);
       if (!provider) throw new Error("GitHub App is not configured");
-      await runEngineerJob({
+      const opened = await runEngineerJob({
         db,
         provider,
         llm: await userLlm(env, db, claimed.userId),
@@ -127,6 +147,14 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         approvalId: payload.approvalId,
         installationId: payload.installationId,
       });
+      if (opened) {
+        await notify(
+          env,
+          db,
+          claimed.userId,
+          pullRequestOpenedNotice({ projectName: opened.projectName, url: opened.url }),
+        );
+      }
       await db.jobs.complete(jobId, now);
       if (claimed.workflowId) {
         const active = await db.jobs.countActive(claimed.workflowId, "engineer", jobId);
@@ -142,6 +170,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       if (!payload.changeEventId) throw new Error("curate job is missing a change id");
       const llm = await userLlm(env, db, claimed.userId);
       await curateReady(
+        env,
         db,
         llm,
         claimed.userId,
@@ -171,13 +200,15 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     if (claimed.type !== "scan") throw new Error(`unsupported job type ${claimed.type}`);
     const payload = JSON.parse(claimed.payloadJson) as {
       installationId?: string;
+      provider?: string;
       repositoryId?: string;
       forceAnalyze?: boolean;
     };
     const forceAnalyze = payload.forceAnalyze === true;
     if (!payload.installationId) throw new Error("scan job is missing an installation id");
-    const provider = githubProvider(env);
-    if (!provider) throw new Error("GitHub App is not configured");
+    const providerName = isScanProvider(payload.provider) ? payload.provider : "github";
+    const source = await scanSource(env, db, claimed.userId, providerName, payload.installationId);
+    const provider = source.provider;
     if (claimed.workflowId) {
       try {
         await db.workflows.transition(claimed.userId, claimed.workflowId, "SCANNING", now);
@@ -191,6 +222,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       provider,
       userId: claimed.userId,
       installationId: payload.installationId,
+      connectionId: source.connectionId,
       repositoryId: payload.repositoryId,
       now,
     });
@@ -208,7 +240,15 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     const llm = await userLlm(env, db, claimed.userId);
     const repos = await db.repos.list(claimed.userId);
     if (open.length === 0) {
-      await curateReady(db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
+      await curateReady(
+        env,
+        db,
+        llm,
+        claimed.userId,
+        claimed.workflowId,
+        payload.repositoryId,
+        now,
+      );
       const pending = claimed.workflowId
         ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
         : [];
@@ -309,7 +349,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         });
       },
     });
-    await curateReady(db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
+    await curateReady(env, db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
     const pending = claimed.workflowId
       ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
       : [];
@@ -355,6 +395,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
 }
 
 async function curateReady(
+  env: Env,
   db: Database,
   llm: LLMProvider,
   userId: string,
@@ -416,6 +457,17 @@ async function curateReady(
       reason: report.reason,
       now,
     });
+    await notify(
+      env,
+      db,
+      userId,
+      approvalWaitingNotice({
+        action: target.mode === "create" ? "NEW_PROJECT" : action,
+        reason: report.reason,
+        repositoryName: repo?.name ?? "repository",
+        approvalsUrl: approvalsUrl(env),
+      }),
+    );
   }
 }
 
@@ -476,8 +528,55 @@ async function userLlm(env: Env, db: Database, userId: string): Promise<LLMProvi
   return new OpenAICompatibleProvider({ baseUrl: config.baseUrl, apiKey, model: config.model });
 }
 
+async function scanSource(
+  env: Env,
+  db: Database,
+  userId: string,
+  providerName: "github" | "huggingface" | "kaggle" | "google",
+  installationId: string,
+): Promise<{ provider: SourceProvider; connectionId: string }> {
+  const connection = await db.connections.findActive(userId, providerName, installationId);
+  if (!connection) throw new Error(`${providerName} connection is missing`);
+  if (providerName === "github") {
+    const provider = githubProvider(env);
+    if (!provider) throw new Error("GitHub App is not configured");
+    return { provider, connectionId: connection.id };
+  }
+  const cipher = await db.connections.ciphertext(userId, connection.id);
+  if (!cipher) throw new Error(`${providerLabel(providerName)} token is missing`);
+  const plain = await decryptString(await importAesKey(env.ENCRYPTION_KEY), cipher);
+  if (providerName === "google") {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      throw new Error("Google OAuth is not configured");
+    }
+    const parsed = JSON.parse(plain) as { refreshToken?: string };
+    if (!parsed.refreshToken) throw new Error("Google token is missing");
+    const accessToken = await googleAccessToken({
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      refreshToken: parsed.refreshToken,
+    });
+    return { provider: new GoogleProvider({ accessToken }), connectionId: connection.id };
+  }
+  const parsed = JSON.parse(plain) as { token?: string };
+  if (!parsed.token) throw new Error(`${providerLabel(providerName)} token is missing`);
+  return {
+    provider:
+      providerName === "kaggle"
+        ? new KaggleProvider({ token: parsed.token })
+        : new HuggingFaceProvider({ token: parsed.token }),
+    connectionId: connection.id,
+  };
+}
+
+function providerLabel(providerName: "huggingface" | "kaggle" | "google"): string {
+  if (providerName === "kaggle") return "Kaggle";
+  if (providerName === "google") return "Google";
+  return "Hugging Face";
+}
+
 async function readFile(
-  provider: GitHubProvider,
+  provider: SourceProvider,
   installationId: string,
   repo: { externalId: string; name: string },
   defaultBranch: string,

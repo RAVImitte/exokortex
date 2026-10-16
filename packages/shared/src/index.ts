@@ -18,6 +18,16 @@ export function nowIso(now: Date = new Date()): string {
   return now.toISOString();
 }
 
+export function primaryEmail(input: {
+  fallback: string;
+  primaryId?: string | null;
+  addresses?: { id: string; emailAddress: string }[];
+}): string {
+  const addresses = input.addresses ?? [];
+  const primary = addresses.find((item) => item.id === input.primaryId);
+  return primary?.emailAddress || addresses[0]?.emailAddress || input.fallback;
+}
+
 const SECRET_FIELD = /api[_-]?key|token|secret|authorization|password|credential|cookie/i;
 
 export function redact(fields: Record<string, unknown>): Record<string, unknown> {

@@ -2,6 +2,7 @@ import { Database } from "@exokortex/database";
 import { encryptString, importAesKey, verifyHmacSha256 } from "@exokortex/security";
 import { AppError } from "@exokortex/shared";
 import type { Hono } from "hono";
+import { storeDiscovered } from "../discover.js";
 import type { AppBindings } from "../http/types.js";
 import { enqueueScan, githubProvider } from "../jobs.js";
 import { open, seal, sessionSecret } from "../session.js";
@@ -82,6 +83,7 @@ export function registerGitHubRoutes(app: Hono<AppBindings>): void {
         id: connection.id,
         provider: connection.provider,
         status: connection.status,
+        externalUserId: connection.externalUserId,
         externalInstallationId: connection.externalInstallationId,
       })),
     });
@@ -104,34 +106,6 @@ async function readInstallState(
   const payload = await open<{ sub?: string; exp?: number }>(sessionSecret(env), state);
   if (!payload?.sub || !payload.exp || payload.exp * 1000 < Date.now()) return null;
   return payload.sub;
-}
-
-async function storeDiscovered(
-  db: Database,
-  userId: string,
-  connectionId: string,
-  provider: NonNullable<ReturnType<typeof githubProvider>>,
-  installationId: string,
-): Promise<number> {
-  const discovered = await provider.discoverRepositories({ installationId });
-  let stored = 0;
-  for (const repo of discovered) {
-    try {
-      await db.repos.upsert({
-        userId,
-        connectionId,
-        externalId: repo.externalId,
-        name: repo.name,
-        url: repo.url,
-        defaultBranch: repo.defaultBranch,
-      });
-      stored += 1;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("repository limit")) break;
-      throw error;
-    }
-  }
-  return stored;
 }
 
 async function enqueuePush(

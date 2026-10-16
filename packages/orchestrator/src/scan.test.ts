@@ -1,5 +1,7 @@
+import type { Database } from "@exokortex/database";
+import type { SourceProvider } from "@exokortex/source-providers";
 import { describe, expect, it } from "vitest";
-import { scanRepositories, type ScanRepo } from "./scan.js";
+import { runUserScan, scanRepositories, type ScanRepo } from "./scan.js";
 
 function repo(overrides: Partial<ScanRepo> = {}): ScanRepo {
   return {
@@ -70,5 +72,58 @@ describe("scanRepositories", () => {
     });
     expect(summary.changed).toBe(0);
     expect(summary.unchanged).toBe(1);
+  });
+});
+
+describe("runUserScan", () => {
+  it("reads revisions only for the connection that owns the job", async () => {
+    const seen: string[] = [];
+    const db = {
+      repos: {
+        list: async () => [
+          {
+            id: "gh",
+            connectionId: "github",
+            role: "SOURCE",
+            url: "https://github.com/ada/api",
+            name: "ada/api",
+            defaultBranch: "main",
+            lastRevision: null,
+            externalId: "1",
+          },
+          {
+            id: "hf",
+            connectionId: "huggingface",
+            role: "SOURCE",
+            url: "https://huggingface.co/ada/bert",
+            name: "ada/bert",
+            defaultBranch: "main",
+            lastRevision: null,
+            externalId: "models/ada/bert",
+          },
+        ],
+        markScanned: async () => undefined,
+      },
+      changes: { insert: async () => "created" as const },
+    };
+    const provider = {
+      getLatestRevision: async (
+        _connection: { installationId: string },
+        repository: { externalId: string },
+      ) => {
+        seen.push(repository.externalId);
+        return { sha: "sha-1", branch: "main" };
+      },
+    };
+    const summary = await runUserScan({
+      db: db as unknown as Database,
+      provider: provider as unknown as SourceProvider,
+      userId: "user",
+      installationId: "ada",
+      connectionId: "huggingface",
+      now: "2026-10-16T00:00:00.000Z",
+    });
+    expect(seen).toEqual(["models/ada/bert"]);
+    expect(summary.baselined).toBe(1);
   });
 });

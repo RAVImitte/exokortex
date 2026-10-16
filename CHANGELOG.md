@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Scout, Analyst, and Curator run in the scan job. The last approval runs Portfolio Engineer and opens a pull request.
+- Hugging Face, Kaggle, and Google Colab are source connections. The portfolio stays one GitHub repository.
+- Approval-waiting and pull-request-opened mail when Resend is configured.
+- Clerk sign-in sends the session token and stores the primary email when `AUTH_MODE=clerk`.
+
 ## 0.1.0
 
 First vertical slice.

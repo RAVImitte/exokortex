@@ -1,11 +1,13 @@
 import { engineerChange, portfolioEngineerPrompt, type EngineerChange } from "@exokortex/agents";
 import type { LLMProvider } from "@exokortex/llm";
 import { askAgent } from "./analyze.js";
+import { caseStudyContent, isCaseStudyPath } from "./portfolio.js";
 
 export interface EngineerProject {
   slug: string;
   name: string;
   description: string | null;
+  architecture: string | null;
   technologies: string[];
   sourceUrl: string;
 }
@@ -46,6 +48,16 @@ export async function proposeEngineerEdit(input: {
   currentContent: string | null;
 }): Promise<EngineerChange> {
   const path = input.profile.projectDataPath;
+  if (isCaseStudyPath(path) && input.currentContent === null) {
+    const title = input.project.name.trim() || input.project.slug;
+    return {
+      path,
+      content: caseStudyContent(input.project),
+      commitMessage: `Add ${title} to the portfolio`,
+      prTitle: `Add ${title}`,
+      prBody: `Adds the approved project ${title} in the portfolio case-study format.`,
+    };
+  }
   const user = [
     `Portfolio repository: ${input.repositoryName}`,
     `Edit only this path: ${path}`,

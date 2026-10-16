@@ -35,12 +35,15 @@ export interface RepositoryRow {
   defaultBranch: string | null;
   role: string;
   lastRevision: string | null;
+  provider?: string;
 }
 
 export interface ConnectionRow {
   id: string;
   provider: string;
   status: string;
+  externalUserId: string | null;
+  externalInstallationId: string | null;
 }
 
 export interface ProjectRow {

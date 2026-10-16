@@ -16,11 +16,15 @@
     "@exokortex/core": "workspace:*",
     "@exokortex/database": "workspace:*",
     "@exokortex/github": "workspace:*",
+    "@exokortex/google": "workspace:*",
+    "@exokortex/huggingface": "workspace:*",
     "@exokortex/jobs": "workspace:*",
+    "@exokortex/kaggle": "workspace:*",
     "@exokortex/llm": "workspace:*",
     "@exokortex/orchestrator": "workspace:*",
     "@exokortex/security": "workspace:*",
     "@exokortex/shared": "workspace:*",
+    "@exokortex/source-providers": "workspace:*",
     "hono": "^4.13.13"
   },
   "devDependencies": {

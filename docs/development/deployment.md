@@ -23,9 +23,11 @@ DEV_SESSION_SECRET          # only if AUTH_MODE=dev, which production must not u
 CLERK_SECRET_KEY            # when AUTH_MODE=clerk
 GITHUB_APP_PRIVATE_KEY
 GITHUB_WEBHOOK_SECRET
+GOOGLE_CLIENT_SECRET
+RESEND_API_KEY              # omit to skip mail
 ```
 
-Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE_URL`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `CLERK_PUBLISHABLE_KEY`) can be Wrangler vars. The Vite build needs `VITE_AUTH_MODE=clerk` and `VITE_CLERK_PUBLISHABLE_KEY` at build time.
+Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE_URL`, `EMAIL_FROM`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GOOGLE_CLIENT_ID`, `CLERK_PUBLISHABLE_KEY`) can be Wrangler vars. The Vite build needs `VITE_AUTH_MODE=clerk` and `VITE_CLERK_PUBLISHABLE_KEY` at build time.
 
 `AUTH_MODE=dev` must not be set when `ENVIRONMENT` is anything other than `development`. The Worker refuses dev login in that case.
 
@@ -38,6 +40,6 @@ Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE
 5. Put secrets in place.
 6. `pnpm --filter @exokortex/worker exec wrangler deploy`
 
-The GitHub App callback URL becomes `https://<your-host>/api/github/callback`. The webhook URL becomes `https://<your-host>/api/github/webhook`.
+The GitHub App callback URL becomes `https://<your-host>/api/github/callback`. The webhook URL becomes `https://<your-host>/api/github/webhook`. The Google OAuth redirect URI becomes `https://<your-host>/api/google/callback`.
 
 Production deploys of a user’s portfolio stay on that user’s existing CI. ExoKortex opens a pull request later. It does not deploy the portfolio.

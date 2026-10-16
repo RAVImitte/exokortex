@@ -7,12 +7,20 @@ export class ApiError extends Error {
   }
 }
 
+let sessionToken: (() => Promise<string | null>) | null = null;
+
+export function setSessionToken(getter: (() => Promise<string | null>) | null): void {
+  sessionToken = getter;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = sessionToken ? await sessionToken() : null;
   const response = await fetch(path, {
     ...init,
     credentials: "include",
     headers: {
       ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
   });

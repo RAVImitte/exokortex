@@ -93,6 +93,16 @@ main {
   text-decoration: none;
 }
 
+.branch {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.branch input {
+  width: 8rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

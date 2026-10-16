@@ -248,9 +248,18 @@ importers:
       '@exokortex/github':
         specifier: workspace:*
         version: link:../../packages/github
+      '@exokortex/google':
+        specifier: workspace:*
+        version: link:../../packages/google
+      '@exokortex/huggingface':
+        specifier: workspace:*
+        version: link:../../packages/huggingface
       '@exokortex/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@exokortex/kaggle':
+        specifier: workspace:*
+        version: link:../../packages/kaggle
       '@exokortex/llm':
         specifier: workspace:*
         version: link:../../packages/llm
@@ -263,6 +272,9 @@ importers:
       '@exokortex/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@exokortex/source-providers':
+        specifier: workspace:*
+        version: link:../../packages/source-providers
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -344,11 +356,50 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
 
+  packages/google:
+    dependencies:
+      '@exokortex/source-providers':
+        specifier: workspace:*
+        version: link:../source-providers
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
+
+  packages/huggingface:
+    dependencies:
+      '@exokortex/source-providers':
+        specifier: workspace:*
+        version: link:../source-providers
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
+
   packages/jobs:
     dependencies:
       '@exokortex/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
+
+  packages/kaggle:
+    dependencies:
+      '@exokortex/source-providers':
+        specifier: workspace:*
+        version: link:../source-providers
     devDependencies:
       typescript:
         specifier: ~6.0.3

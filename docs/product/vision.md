@@ -12,4 +12,4 @@ The orchestrator is ordinary TypeScript. Agents propose structured JSON. They do
 
 ## What this is not
 
-Billing, a mobile app, several portfolios per person, autonomous deletion, or a redesign of the portfolio’s look. Hugging Face, Kaggle, and Google are later source providers, not part of the first slice.
+Billing, a mobile app, several portfolios per person, autonomous deletion, or a redesign of the portfolio’s look.

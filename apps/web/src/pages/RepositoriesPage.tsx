@@ -4,6 +4,7 @@ import type { RepositoryRow } from "../api/types.js";
 
 export function RepositoriesPage() {
   const [repos, setRepos] = useState<RepositoryRow[]>([]);
+  const [branches, setBranches] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -20,6 +21,22 @@ export function RepositoriesPage() {
     setMessage("");
     await api(`/api/repositories/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
     await load();
+  }
+
+  async function saveBranch(repo: RepositoryRow) {
+    const defaultBranch = (branches[repo.id] ?? repo.defaultBranch ?? "").trim();
+    setMessage("");
+    setError("");
+    try {
+      await api(`/api/repositories/${repo.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ defaultBranch }),
+      });
+      setMessage(`Portfolio pull requests target ${defaultBranch}.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the branch");
+    }
   }
 
   async function scan() {
@@ -57,7 +74,28 @@ export function RepositoriesPage() {
               <td>
                 <a href={repo.url}>{repo.name}</a>
               </td>
-              <td>{repo.defaultBranch}</td>
+              <td>
+                {repo.role === "PORTFOLIO" ? (
+                  <form
+                    className="branch"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void saveBranch(repo);
+                    }}
+                  >
+                    <input
+                      aria-label={`${repo.name} branch`}
+                      value={branches[repo.id] ?? repo.defaultBranch ?? ""}
+                      onChange={(event) =>
+                        setBranches((current) => ({ ...current, [repo.id]: event.target.value }))
+                      }
+                    />
+                    <button type="submit">Save</button>
+                  </form>
+                ) : (
+                  repo.defaultBranch
+                )}
+              </td>
               <td className="muted">{repo.lastRevision?.slice(0, 7) ?? "not scanned"}</td>
               <td>
                 <select
@@ -65,7 +103,9 @@ export function RepositoriesPage() {
                   onChange={(event) => void setRole(repo.id, event.target.value)}
                 >
                   <option value="SOURCE">Source</option>
-                  <option value="PORTFOLIO">Portfolio</option>
+                  {repo.provider && repo.provider !== "github" ? null : (
+                    <option value="PORTFOLIO">Portfolio</option>
+                  )}
                   <option value="EXCLUDED">Excluded</option>
                 </select>
               </td>
@@ -74,7 +114,7 @@ export function RepositoriesPage() {
         </tbody>
       </table>
       {repos.length === 0 ? (
-        <p className="muted">No repositories yet. Connect GitHub first.</p>
+        <p className="muted">No repositories yet. Connect a source first.</p>
       ) : null}
     </section>
   );

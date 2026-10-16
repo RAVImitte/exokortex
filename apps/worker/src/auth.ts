@@ -1,5 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
-import { AppError } from "@exokortex/shared";
+import { AppError, primaryEmail } from "@exokortex/shared";
 import type { Env } from "./env.js";
 import { open, readCookie, sessionSecret } from "./session.js";
 
@@ -27,9 +27,20 @@ export async function identify(env: Env, request: Request): Promise<AuthIdentity
     secretKey: env.CLERK_SECRET_KEY,
     publishableKey: env.CLERK_PUBLISHABLE_KEY,
   });
-  const state = await clerk.authenticateRequest(request);
+  const state = await clerk.authenticateRequest(
+    request,
+    env.APP_BASE_URL ? { authorizedParties: [env.APP_BASE_URL] } : {},
+  );
   if (!state.isAuthenticated) return null;
   const auth = state.toAuth();
   if (!auth?.userId) return null;
-  return { subject: auth.userId, email: auth.userId };
+  const user = await clerk.users.getUser(auth.userId);
+  return {
+    subject: auth.userId,
+    email: primaryEmail({
+      fallback: auth.userId,
+      primaryId: user.primaryEmailAddressId,
+      addresses: user.emailAddresses,
+    }),
+  };
 }

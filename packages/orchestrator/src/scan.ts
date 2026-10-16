@@ -74,11 +74,16 @@ export async function runUserScan(input: {
   provider: SourceProvider;
   userId: string;
   installationId: string;
+  connectionId?: string;
   repositoryId?: string;
   now: string;
 }): Promise<ScanSummary> {
   const all = await input.db.repos.list(input.userId);
-  const selected = input.repositoryId ? all.filter((repo) => repo.id === input.repositoryId) : all;
+  const selected = all.filter((repo) => {
+    if (input.connectionId && repo.connectionId !== input.connectionId) return false;
+    if (input.repositoryId && repo.id !== input.repositoryId) return false;
+    return true;
+  });
   return scanRepositories({
     repos: selected,
     known: knownPortfolio(all),

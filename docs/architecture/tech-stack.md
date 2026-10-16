@@ -57,8 +57,11 @@ Packages do not call each other in circles. The Worker is the composition root. 
 | `@exokortex/security`         | AES-GCM and HMAC-SHA256 on Web Crypto.                                                         |
 | `@exokortex/jobs`             | Idempotency keys, backoff, lock expiry.                                                        |
 | `@exokortex/database`         | Numbered SQL migrations and one repository class per table group.                              |
-| `@exokortex/source-providers` | The provider interface. Hugging Face, Kaggle, and Google throw “not implemented”.              |
+| `@exokortex/source-providers` | The provider interface used by GitHub, Hugging Face, Kaggle, and Google.                       |
 | `@exokortex/github`           | GitHub App JWT, installation tokens, repository discovery, commit SHAs, pull requests.         |
+| `@exokortex/google`           | OAuth refresh, Colab notebook discovery, and Drive revisions.                                  |
+| `@exokortex/huggingface`      | A read token, discovery of the user’s models, datasets, and spaces, and commit diffs.          |
+| `@exokortex/kaggle`           | An API token, discovery of the user’s datasets and notebooks, and version diffs.               |
 | `@exokortex/orchestrator`     | Scan, Scout, Analyst, Curator, and the Engineer edit.                                          |
 | `@exokortex/llm`              | OpenAI-compatible `POST /chat/completions`.                                                    |
 | `@exokortex/agents`           | Prompt text and Zod schemas for Scout, Analyst, Curator, and the Engineer.                     |
@@ -71,12 +74,15 @@ Packages do not call each other in circles. The Worker is the composition root. 
 
 - `session.ts` — health, local dev login, logout
 - `account.ts` — profile, dashboard, settings, account deletion
-- `github.ts` — App install, callback, webhooks, connections
+- `github.ts` — App install, callback, webhooks, connection list
+- `google.ts` — OAuth connect, Colab discovery
+- `huggingface.ts` — read token, account check, discovery
+- `kaggle.ts` — API token, account check, discovery
 - `repositories.ts` — repository list, role changes, scan-now, change events
 - `llm.ts` — save and test a bring-your-own key
 - `approvals.ts` — project list and approve or reject
 
-`app.ts` only registers middleware and those route modules. Public paths (health, dev login, logout, GitHub callback, webhook) skip the session check. Everything else requires a user.
+`app.ts` only registers middleware and those route modules. Public paths (health, dev login, logout, GitHub callback, GitHub webhook, Google callback) skip the session check. Everything else requires a user.
 
 Errors that the app throws on purpose are `AppError` and return `{ error: { code, message } }`. Anything else becomes a generic 500. Logs are JSON lines with secrets redacted.
 
@@ -97,10 +103,10 @@ Screens that exist: login, dashboard, repositories, connections, activity, AI se
 
 Two verifiers sit behind one `identify()` function in the Worker.
 
-| Mode              | When                                                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AUTH_MODE=dev`   | Local only. Refused unless `ENVIRONMENT=development`. The cookie `exo_session` is `base64url(payload).hmac`. HttpOnly, SameSite=Lax, 14 days. |
-| `AUTH_MODE=clerk` | [Clerk](https://clerk.com/). `@clerk/backend` verifies the request. `@clerk/clerk-react` renders sign-in when `VITE_AUTH_MODE=clerk`.         |
+| Mode              | When                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_MODE=dev`   | Local only. Refused unless `ENVIRONMENT=development`. The cookie `exo_session` is `base64url(payload).hmac`. HttpOnly, SameSite=Lax, 14 days.                             |
+| `AUTH_MODE=clerk` | [Clerk](https://clerk.com/). The browser sends the session token. `@clerk/backend` verifies it and stores the primary email. Sign-in renders when `VITE_AUTH_MODE=clerk`. |
 
 One user is one tenant. The database key is `users.id`. Clerk’s user id, or `dev:<email>`, is stored as `auth_subject`. There are no teams.
 
@@ -126,11 +132,11 @@ That runs `wrangler d1 migrations apply`. There is no ORM. Each repository metho
 
 Important uniqueness rules:
 
-- A repository is unique per user, connection, and GitHub id.
+- A repository is unique per user, connection, and external id.
 - A change event is unique per repository and revision pair, so the same push cannot open two events.
 - A job is unique on `idempotency_key`.
 
-The first successful scan of a repository stores the commit SHA and does not emit a change event. A later scan emits one event only when the SHA differs. Portfolio and excluded repositories never emit change events.
+The first successful scan of a repository stores its revision and does not emit a change event. A later scan emits one event only when that revision differs. Portfolio and excluded repositories never emit change events.
 
 ## Workflow
 
@@ -144,13 +150,13 @@ A failed scan retries with backoff (`30s * 2^(attempt-1)`, capped at 6 hours) up
 
 Idempotency keys:
 
-| Trigger       | Key                                        |
-| ------------- | ------------------------------------------ |
-| Push webhook  | `scan:{userId}:{repositoryId}:{revision}`  |
-| Scan now      | `scan:{userId}:manual:{minute}`            |
-| First connect | `scan:{userId}:bootstrap:{installationId}` |
-| Cron          | `scan:{userId}:scheduled:{nextScanAt}`     |
-| Engineer      | `engineer:{userId}:{approvalId}`           |
+| Trigger       | Key                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| Push webhook  | `scan:{userId}:{repositoryId}:{revision}`                                                         |
+| Scan now      | `scan:{userId}:manual:{minute}` for GitHub, with the provider name inserted for other connections |
+| First connect | `scan:{userId}:bootstrap:{installationId}`                                                        |
+| Cron          | `scan:{userId}:scheduled:{nextScanAt}` for GitHub, with the provider name inserted otherwise      |
+| Engineer      | `engineer:{userId}:{approvalId}`                                                                  |
 
 ## Secrets and the model
 
@@ -165,7 +171,7 @@ Ciphertext is `v1:<iv>:<cipher>`, so a future key version can be told apart from
 
 The LLM client speaks the OpenAI chat-completions shape. Any compatible base URL works. ExoKortex does not pay for inference and does not send credentials to the model. Scout, Analyst, and Curator run from the scan job. The Engineer runs from its own job. All four return validated JSON.
 
-Still ahead, in tracker order: Resend email, Turnstile, and GitHub Actions on the user’s portfolio repository. The user merges pull requests. Auto-merge stays off.
+The slice list is finished. Turnstile and deploying the portfolio from the user’s CI stay **Planned**. Publishing ExoKortex is the checklist in [deployment.md](../development/deployment.md). The user merges pull requests. Auto-merge stays off. Email is sent through Resend when an approval is waiting and when a pull request opens. Hugging Face, Kaggle, and Google Colab are sources. The portfolio repository stays on GitHub.
 
 ## What this stack deliberately leaves out
 

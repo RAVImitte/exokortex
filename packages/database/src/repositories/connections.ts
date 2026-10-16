@@ -74,6 +74,41 @@ export class ConnectionRepository {
     return rows.results.map(toConnection);
   }
 
+  async findOwned(userId: string, connectionId: string): Promise<ConnectionRecord | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM connections WHERE id = ? AND user_id = ?")
+      .bind(connectionId, userId)
+      .first<ConnectionRow>();
+    return row ? toConnection(row) : null;
+  }
+
+  async findActive(
+    userId: string,
+    provider: string,
+    installationId: string,
+  ): Promise<ConnectionRecord | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT * FROM connections
+         WHERE user_id = ? AND provider = ? AND external_installation_id = ? AND status = 'active'
+         LIMIT 1`,
+      )
+      .bind(userId, provider, installationId)
+      .first<ConnectionRow>();
+    return row ? toConnection(row) : null;
+  }
+
+  async ciphertext(userId: string, connectionId: string): Promise<string | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT encrypted_credentials FROM connections
+         WHERE id = ? AND user_id = ? AND status = 'active'`,
+      )
+      .bind(connectionId, userId)
+      .first<{ encrypted_credentials: string | null }>();
+    return row?.encrypted_credentials ?? null;
+  }
+
   async findByInstallation(installationId: string): Promise<ConnectionRecord | null> {
     const row = await this.db
       .prepare(

@@ -4,23 +4,71 @@ import { Database } from "@exokortex/database";
 import { forceAnalyzeKey, manualScanKey } from "@exokortex/jobs";
 import { AppError } from "@exokortex/shared";
 import type { Hono } from "hono";
-import type { AppBindings } from "../http/types.js";
 import { ensurePortfolioProfile } from "../engineer.js";
-import { enqueueCurate, enqueueScan, githubProvider } from "../jobs.js";
+import type { AppBindings } from "../http/types.js";
+import { enqueueCurate, enqueueScan, githubProvider, isScanProvider } from "../jobs.js";
+
+function isBranchName(value: string): boolean {
+  if (!/^[A-Za-z0-9._/-]{1,100}$/.test(value)) return false;
+  return (
+    !value.startsWith("/") && !value.endsWith("/") && !value.includes("//") && !value.includes("..")
+  );
+}
 
 export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
   app.get("/api/repositories", async (c) => {
-    const repositories = await new Database(c.env.DB).repos.list(c.get("userId"));
-    return c.json({ repositories });
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const repositories = await db.repos.list(userId);
+    const connections = await db.connections.list(userId);
+    const providers = new Map(
+      connections.map((connection) => [connection.id, connection.provider]),
+    );
+    return c.json({
+      repositories: repositories.map((repo) => ({
+        ...repo,
+        provider: providers.get(repo.connectionId) ?? "github",
+      })),
+    });
   });
 
   app.patch("/api/repositories/:id", async (c) => {
-    const body = await c.req.json<{ role?: string }>();
+    const body = await c.req.json<{ role?: string; defaultBranch?: string }>();
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    if (typeof body.defaultBranch === "string") {
+      const branch = body.defaultBranch.trim();
+      if (!isBranchName(branch)) {
+        throw new AppError("invalid_branch", "Enter a branch name such as v2", 400);
+      }
+      const current = await db.repos.find(userId, c.req.param("id"));
+      if (!current || current.role !== "PORTFOLIO") {
+        throw new AppError(
+          "not_portfolio",
+          "Set the deploy branch on the portfolio repository",
+          409,
+        );
+      }
+      const updated = await db.repos.setDefaultBranch(userId, current.id, branch);
+      if (!updated) throw new AppError("not_found", "Repository not found", 404);
+      if (current.defaultBranch !== branch) {
+        await db.profiles.remove(userId, updated.id);
+        await ensurePortfolioProfile(db, githubProvider(c.env), userId, updated.id);
+      }
+      return c.json(updated);
+    }
     if (!body.role || !isRepositoryRole(body.role)) {
       throw new AppError("invalid_role", "Role must be SOURCE, PORTFOLIO, or EXCLUDED");
     }
-    const db = new Database(c.env.DB);
-    const userId = c.get("userId");
+    if (body.role === "PORTFOLIO") {
+      const current = await db.repos.find(userId, c.req.param("id"));
+      const connection = current
+        ? await db.connections.findOwned(userId, current.connectionId)
+        : null;
+      if (connection?.provider !== "github") {
+        throw new AppError("not_github", "The portfolio repository has to be on GitHub", 409);
+      }
+    }
     const updated = await db.repos.setRole(userId, c.req.param("id"), body.role);
     if (!updated) throw new AppError("not_found", "Repository not found", 404);
     if (updated.role === "PORTFOLIO") {
@@ -32,25 +80,34 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
   app.post("/api/scans", async (c) => {
     const db = new Database(c.env.DB);
     const userId = c.get("userId");
-    const github = (await db.connections.list(userId)).find(
-      (connection) => connection.provider === "github" && connection.status === "active",
+    const connected = (await db.connections.list(userId)).filter(
+      (connection) =>
+        connection.status === "active" &&
+        connection.externalInstallationId &&
+        isScanProvider(connection.provider),
     );
-    if (!github?.externalInstallationId) {
-      throw new AppError("not_connected", "Connect GitHub before scanning", 409);
+    if (connected.length === 0) {
+      throw new AppError("not_connected", "Connect GitHub or Hugging Face before scanning", 409);
     }
     const now = new Date();
-    const result = await enqueueScan(c.env, db, {
-      userId,
-      installationId: github.externalInstallationId,
-      idempotencyKey: manualScanKey(userId, now),
-    });
+    const scans = [];
+    for (const connection of connected) {
+      scans.push(
+        await enqueueScan(c.env, db, {
+          userId,
+          installationId: connection.externalInstallationId ?? "",
+          provider: connection.provider,
+          idempotencyKey: manualScanKey(userId, now, connection.provider),
+        }),
+      );
+    }
     const user = await db.users.find(userId);
     if (user && !user.nextScanAt) {
       await db.users.updateSettings(user.id, {
         nextScanAt: addFrequency(now, user.scanFrequency).toISOString(),
       });
     }
-    return c.json(result, 202);
+    return c.json({ scans }, 202);
   });
 
   app.get("/api/changes", async (c) => {
@@ -108,11 +165,11 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
     }
     const repo = await db.repos.find(userId, change.repositoryId);
     if (!repo) throw new AppError("not_found", "Repository not found", 404);
-    const github = (await db.connections.list(userId)).find(
-      (connection) => connection.id === repo.connectionId && connection.status === "active",
+    const connection = (await db.connections.list(userId)).find(
+      (item) => item.id === repo.connectionId && item.status === "active",
     );
-    if (!github?.externalInstallationId) {
-      throw new AppError("not_connected", "Connect GitHub before analyzing", 409);
+    if (!connection?.externalInstallationId) {
+      throw new AppError("not_connected", "Reconnect this source before analyzing", 409);
     }
     if (ignored) {
       const reopened = await db.changes.reopen(userId, change.id);
@@ -122,7 +179,8 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
     }
     const result = await enqueueScan(c.env, db, {
       userId,
-      installationId: github.externalInstallationId,
+      installationId: connection.externalInstallationId,
+      provider: connection.provider,
       repositoryId: repo.id,
       forceAnalyze: true,
       idempotencyKey: forceAnalyzeKey(userId, change.id, new Date()),

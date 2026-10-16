@@ -12,7 +12,11 @@ export interface Env {
   GITHUB_APP_SLUG?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   APP_BASE_URL?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
 }
 
 export interface JobMessage {

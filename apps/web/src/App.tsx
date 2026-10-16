@@ -1,7 +1,14 @@
-import { ClerkProvider, SignIn, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
+import {
+  ClerkProvider,
+  SignIn,
+  SignedIn,
+  SignedOut,
+  useAuth,
+  UserButton,
+} from "@clerk/clerk-react";
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { api } from "./api/client.js";
+import { api, setSessionToken } from "./api/client.js";
 import type { Me } from "./api/types.js";
 import { Shell } from "./layout/Shell.js";
 import { ActivityPage } from "./pages/ActivityPage.js";
@@ -33,12 +40,32 @@ function ClerkApp() {
         </div>
       </SignedOut>
       <SignedIn>
-        <Shell>
-          <UserButton />
-          <AppRoutes />
-        </Shell>
+        <ClerkSession />
       </SignedIn>
     </ClerkProvider>
+  );
+}
+
+function ClerkSession() {
+  const { getToken, signOut } = useAuth();
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  setSessionToken(() => getToken());
+  useEffect(() => () => setSessionToken(null), []);
+  useEffect(() => {
+    api<Me>("/api/me")
+      .then(setMe)
+      .catch(() => setMe(null));
+  }, [getToken]);
+  return (
+    <Shell
+      me={me ?? undefined}
+      account={<UserButton />}
+      onSignOut={() => {
+        void signOut();
+      }}
+    >
+      {me === null ? <p className="error">Sign-in could not be verified.</p> : <AppRoutes />}
+    </Shell>
   );
 }
 

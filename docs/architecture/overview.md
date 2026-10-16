@@ -1,6 +1,6 @@
 # Architecture overview
 
-Status: **Implemented** for scanning. Agent execution is **Planned**.
+Status: **Implemented** for scanning, Scout, Analyst, Curator, approval, and the Portfolio Engineer pull request.
 
 ExoKortex is one Cloudflare Worker. The dashboard is a static React app. D1 holds every durable fact. A queue message is only a job id.
 
@@ -11,7 +11,10 @@ React dashboard
             → D1
         → queue { jobId }
             → scan handler
-                → GitHub App (token minted per call, not stored)
+                → GitHub, Hugging Face, Kaggle, or Google
+                → Scout, Analyst, Curator
+            → engineer handler
+                → GitHub pull request
 ```
 
 An hourly cron releases stuck locks and enqueues due scans.

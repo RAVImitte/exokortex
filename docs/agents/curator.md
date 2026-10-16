@@ -1,6 +1,6 @@
 # Portfolio Curator
 
-Status: **Implemented** after Analyst has stored a report. Curator compares that report with the portfolio project list. `NEW_PROJECT` and `UPDATED_PROJECT` create a pending approval and do not create or edit a project. `UNCHANGED` and `IGNORE` finish the workflow. A follow-up question is sent back to Analyst at most 5 times. Approving a new project creates the registry row. The Portfolio Engineer does not run.
+Status: **Implemented** after Analyst has stored a report. Curator compares that report with the portfolio project list. `NEW_PROJECT` and `UPDATED_PROJECT` create a pending approval and do not create or edit a project until you approve. `UNCHANGED` and `IGNORE` finish the workflow. A follow-up question is sent back to Analyst at most 5 times. Approving a new project creates the registry row. Approving the last waiting item runs the Portfolio Engineer, which opens a pull request. A rejection does not.
 
 You are Portfolio Curator for ExoKortex.
 Compare a discovered repository with the canonical portfolio project registry.

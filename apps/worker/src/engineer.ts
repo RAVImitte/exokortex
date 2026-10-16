@@ -2,8 +2,10 @@ import type { GitHubProvider } from "@exokortex/github";
 import type { LLMProvider } from "@exokortex/llm";
 import {
   discoverPortfolioProfile,
+  parseAnalystReport,
   portfolioBranch,
   profileManifests,
+  projectDataFile,
   proposeEngineerEdit,
 } from "@exokortex/orchestrator";
 import type { Database } from "@exokortex/database";
@@ -54,12 +56,12 @@ export async function runEngineerJob(input: {
   userId: string;
   approvalId: string;
   installationId: string;
-}): Promise<void> {
+}): Promise<{ url: string; projectName: string } | null> {
   const approval = await input.db.approvals.get(input.userId, input.approvalId);
   if (!approval || approval.status !== "approved") {
     throw new Error("engineer job is missing an approved change");
   }
-  if (approval.pullRequestUrl) return;
+  if (approval.pullRequestUrl) return null;
   if (!approval.projectId) throw new Error("engineer job is missing a project");
   const project = (await input.db.projects.list(input.userId)).find(
     (item) => item.id === approval.projectId,
@@ -75,29 +77,34 @@ export async function runEngineerJob(input: {
     ? await input.db.changes.get(input.userId, approval.changeEventId)
     : null;
   const sourceRepo = source ? await input.db.repos.find(input.userId, source.repositoryId) : null;
+  const analystRaw = source
+    ? await input.db.agents.latestOutput(input.userId, source.id, "analyst")
+    : null;
+  const analyst = analystRaw ? parseAnalystReport(analystRaw) : null;
   const githubRepo = {
     externalId: portfolio.externalId,
     name: portfolio.name,
     defaultBranch: portfolio.defaultBranch ?? "main",
   };
   const connectionRef = { installationId: input.installationId };
+  const dataPath = projectDataFile(profile.projectDataPath, project.slug);
+  const editProfile = { ...profile, projectDataPath: dataPath };
   let currentContent: string | null;
   try {
-    currentContent = (
-      await input.provider.getFile(connectionRef, githubRepo, profile.projectDataPath)
-    ).content;
+    currentContent = (await input.provider.getFile(connectionRef, githubRepo, dataPath)).content;
   } catch {
     currentContent = null;
   }
   const change = await proposeEngineerEdit({
     llm: input.llm,
     repositoryName: portfolio.name,
-    profile,
+    profile: editProfile,
     project: {
       slug: project.slug,
       name: project.name,
-      description: project.description,
-      technologies: project.technologies,
+      description: analyst?.purpose || project.description,
+      architecture: analyst?.architecture ?? null,
+      technologies: analyst?.technologies.length ? analyst.technologies : project.technologies,
       sourceUrl: sourceRepo?.url ?? "",
     },
     currentContent,
@@ -121,4 +128,5 @@ export async function runEngineerJob(input: {
       outputJson: JSON.stringify({ ...change, pullRequestUrl: pull.url }),
     });
   }
+  return { url: pull.url, projectName: project.name };
 }
