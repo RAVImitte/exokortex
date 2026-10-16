@@ -1,6 +1,6 @@
 # Contributing
 
-ExoKortex is early. The first slice is scanning. Do not add agent execution, billing, or a second database behind a feature that the roadmap still marks planned.
+Follow the [slice tracker](docs/product/roadmap.md). Work on the current slice only. Do not add billing, a second database, or a later slice before its entry condition is met.
 
 ## Setup
 

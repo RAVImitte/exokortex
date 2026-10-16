@@ -25,6 +25,24 @@ export function approvalAction(
   return null;
 }
 
+export function portfolioTarget<T extends { id: string; slug: string }>(input: {
+  action: "NEW_PROJECT" | "UPDATED_PROJECT";
+  projectId: string | null;
+  projectSlug: string | null;
+  projects: T[];
+}): { mode: "link"; project: T } | { mode: "create" } {
+  if (input.action !== "UPDATED_PROJECT") return { mode: "create" };
+  const byId = input.projectId
+    ? input.projects.find((project) => project.id === input.projectId)
+    : undefined;
+  const bySlug = input.projectSlug
+    ? input.projects.find((project) => project.slug === input.projectSlug)
+    : undefined;
+  const project = byId ?? bySlug;
+  if (!project) return { mode: "create" };
+  return { mode: "link", project };
+}
+
 export async function curateChange(input: {
   llm: LLMProvider;
   change: AnalysisChange;

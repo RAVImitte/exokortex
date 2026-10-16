@@ -2,6 +2,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createAppJwt } from "./jwt.js";
 import { GitHubProvider } from "./provider.js";
+import { explainGitHubWriteError } from "./write-error.js";
 
 function testKey(): string {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -59,6 +60,58 @@ describe("GitHubProvider", () => {
       { externalId: "7", name: "acme/api", defaultBranch: "main" },
     );
     expect(revision).toEqual({ sha: "abc123", branch: "main" });
+  });
+
+  it("opens a pull request on a new branch and does not merge", async () => {
+    const calls: { url: string; method: string }[] = [];
+    const fetchMock: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+      if (url.includes("/access_tokens")) return json({ token: "ghs_test" });
+      if (url.includes("/commits/main")) return json({ sha: "base" });
+      if (url.includes("/git/refs") && method === "POST")
+        return json({ ref: "refs/heads/exokortex/api" });
+      if (url.includes("/contents/") && method === "GET") {
+        return new Response("missing", { status: 404 });
+      }
+      if (url.includes("/contents/") && method === "PUT") return json({ content: { sha: "new" } });
+      if (url.includes("/pulls") && method === "POST") {
+        return json({ html_url: "https://github.com/acme/site/pull/4" });
+      }
+      return new Response("missing fixture", { status: 404 });
+    };
+    const provider = new GitHubProvider({
+      appId: "12345",
+      privateKeyPem: testKey(),
+      fetch: fetchMock,
+    });
+    const pull = await provider.openPullRequest({
+      connection: { installationId: "99" },
+      repository: { externalId: "7", name: "acme/site", defaultBranch: "main" },
+      branch: "exokortex/api",
+      path: "src/data/projects.json",
+      content: "[]",
+      commitMessage: "Add API",
+      prTitle: "Add API",
+      prBody: "Adds the approved project.",
+    });
+    expect(pull.url).toBe("https://github.com/acme/site/pull/4");
+    expect(calls.some((call) => call.url.includes("/merges"))).toBe(false);
+    expect(calls.some((call) => call.method === "PUT" && call.url.includes("/contents/"))).toBe(
+      true,
+    );
+  });
+});
+
+describe("GitHub write errors", () => {
+  it("explains a missing write permission", () => {
+    expect(explainGitHubWriteError("GitHub /repos/acme/site/git/refs returned 403")).toBe(
+      "GitHub refused to open the pull request. Set Contents and Pull requests to Read and write on the GitHub App, save, and approve that request on the installation. Then try again.",
+    );
+    expect(explainGitHubWriteError("GitHub /repos/acme/site/pulls returned 422")).toBe(
+      "GitHub /repos/acme/site/pulls returned 422",
+    );
   });
 });
 

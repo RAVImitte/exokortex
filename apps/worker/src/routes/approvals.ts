@@ -1,9 +1,12 @@
 import { curatorClassification } from "@exokortex/agents";
 import { Database } from "@exokortex/database";
-import { parseAnalystReport } from "@exokortex/orchestrator";
-import { AppError } from "@exokortex/shared";
-import type { Hono } from "hono";
+import { explainGitHubWriteError } from "@exokortex/github";
+import { engineerKey } from "@exokortex/jobs";
+import { approvalFollowUp, parseAnalystReport, portfolioTarget } from "@exokortex/orchestrator";
+import { AppError, nowIso } from "@exokortex/shared";
+import type { Context, Hono } from "hono";
 import type { AppBindings } from "../http/types.js";
+import { enqueueEngineer } from "../jobs.js";
 
 export function registerApprovalRoutes(app: Hono<AppBindings>): void {
   app.get("/api/projects", async (c) => {
@@ -11,7 +14,36 @@ export function registerApprovalRoutes(app: Hono<AppBindings>): void {
   });
 
   app.get("/api/approvals", async (c) => {
-    return c.json({ approvals: await new Database(c.env.DB).approvals.list(c.get("userId")) });
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const approvals = await db.approvals.list(userId);
+    const jobs = await db.jobs.listByType(userId, "engineer");
+    return c.json({
+      approvals: approvals.map((approval) => {
+        const job = jobs.find((item) => item.idempotencyKey === engineerKey(userId, approval.id));
+        return {
+          ...approval,
+          engineerStatus: job?.status ?? null,
+          engineerError: job?.lastError ? explainGitHubWriteError(job.lastError) : null,
+        };
+      }),
+    });
+  });
+
+  app.post("/api/approvals/:id/retry", async (c) => {
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const approval = await db.approvals.get(userId, c.req.param("id"));
+    if (!approval || approval.status !== "approved" || approval.pullRequestUrl) {
+      throw new AppError("not_found", "Approval not found", 404);
+    }
+    const job = await db.jobs.listByType(userId, "engineer");
+    const engineer = job.find((item) => item.idempotencyKey === engineerKey(userId, approval.id));
+    if (!engineer) throw new AppError("not_found", "Engineer job not found", 404);
+    const requeued = await db.jobs.requeue(userId, engineer.id, nowIso());
+    if (!requeued) throw new AppError("busy", "The pull request is already being opened", 409);
+    await c.env.JOBS.send({ jobId: engineer.id });
+    return c.json({ ok: true }, 202);
   });
 
   app.post("/api/approvals/:id/resolve", async (c) => {
@@ -25,24 +57,95 @@ export function registerApprovalRoutes(app: Hono<AppBindings>): void {
     if (!approval || approval.status !== "pending") {
       throw new AppError("not_found", "Approval not found", 404);
     }
+    const pendingBefore = approval.workflowId
+      ? await db.approvals.listPending(userId, approval.workflowId)
+      : [];
+    const alreadyApproved = approval.workflowId
+      ? await db.approvals.listApprovedWithoutPullRequest(userId, approval.workflowId)
+      : [];
+    const isLast = pendingBefore.length <= 1;
+    const willEngineer = isLast && (body.decision === "approved" || alreadyApproved.length > 0);
+    const github = (await db.connections.list(userId)).find(
+      (connection) => connection.provider === "github" && connection.status === "active",
+    );
+    if (willEngineer && !github?.externalInstallationId) {
+      throw new AppError(
+        "not_connected",
+        "Connect GitHub before approving a portfolio change",
+        409,
+      );
+    }
     const projectId =
       body.decision === "approved" ? await applyApproval(db, userId, approval) : null;
     const resolved = await db.approvals.resolve(userId, approval.id, body.decision, projectId);
     if (!resolved) throw new AppError("not_found", "Approval not found", 404);
-    if (approval.workflowId) {
-      const pending = await db.approvals.listPending(userId, approval.workflowId);
-      if (pending.length === 0) {
-        try {
-          await db.workflows.transition(userId, approval.workflowId, "COMPLETED");
-        } catch (error) {
-          if (!(error instanceof Error) || !error.message.includes("Illegal workflow transition")) {
-            throw error;
-          }
-        }
+    if (!approval.workflowId) {
+      if (body.decision === "approved" && github?.externalInstallationId) {
+        const queued = await enqueueEngineer(db, {
+          userId,
+          workflowId: null,
+          approvalId: approval.id,
+          installationId: github.externalInstallationId,
+        });
+        if (queued.created) await c.env.JOBS.send({ jobId: queued.jobId });
       }
+      return c.json({ ok: true });
     }
-    return c.json({ ok: true });
+    return continueWorkflow(c, db, userId, approval.workflowId);
   });
+}
+
+async function continueWorkflow(
+  c: Context<AppBindings>,
+  db: Database,
+  userId: string,
+  workflowId: string,
+): Promise<Response> {
+  const github = (await db.connections.list(userId)).find(
+    (connection) => connection.provider === "github" && connection.status === "active",
+  );
+  const pending = await db.approvals.listPending(userId, workflowId);
+  const approved = await db.approvals.listApprovedWithoutPullRequest(userId, workflowId);
+  const followUp = approvalFollowUp({
+    pendingLeft: pending.length,
+    approvedWithoutPullRequest: approved.length,
+  });
+  if (followUp === "wait") return c.json({ ok: true });
+  if (followUp === "complete" || !github?.externalInstallationId) {
+    await finishWorkflow(db, userId, workflowId, "COMPLETED");
+    return c.json({ ok: true });
+  }
+  await finishWorkflow(db, userId, workflowId, "ENGINEERING");
+  const queued = [];
+  for (const item of approved) {
+    queued.push(
+      await enqueueEngineer(db, {
+        userId,
+        workflowId,
+        approvalId: item.id,
+        installationId: github.externalInstallationId,
+      }),
+    );
+  }
+  for (const job of queued) {
+    if (job.created) await c.env.JOBS.send({ jobId: job.jobId });
+  }
+  return c.json({ ok: true });
+}
+
+async function finishWorkflow(
+  db: Database,
+  userId: string,
+  workflowId: string,
+  to: "COMPLETED" | "ENGINEERING",
+): Promise<void> {
+  try {
+    await db.workflows.transition(userId, workflowId, to);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("Illegal workflow transition")) {
+      throw error;
+    }
+  }
 }
 
 async function applyApproval(
@@ -60,20 +163,18 @@ async function applyApproval(
   if (!change) throw new AppError("not_found", "Change not found", 404);
   const repo = await db.repos.find(userId, change.repositoryId);
   if (!repo) throw new AppError("not_found", "Repository not found", 404);
+  const projects = await db.projects.list(userId);
   const curatorRaw = await db.agents.latestOutput(userId, change.id, "curator");
   const curator = curatorRaw ? curatorClassification.parse(JSON.parse(curatorRaw)) : null;
-  if (approval.action === "UPDATED_PROJECT") {
-    const listed = approval.projectId
-      ? (await db.projects.list(userId)).find((item) => item.id === approval.projectId)
-      : null;
-    const project =
-      listed ??
-      (curator?.projectSlug ? await db.projects.findBySlug(userId, curator.projectSlug) : null);
-    if (!project) {
-      throw new AppError("missing_project", "No portfolio project matches this update", 409);
-    }
-    await db.projects.linkSource(project.id, repo.id);
-    return project.id;
+  const target = portfolioTarget({
+    action: approval.action === "UPDATED_PROJECT" ? "UPDATED_PROJECT" : "NEW_PROJECT",
+    projectId: approval.projectId,
+    projectSlug: curator?.projectSlug ?? null,
+    projects,
+  });
+  if (target.mode === "link") {
+    await db.projects.linkSource(target.project.id, repo.id);
+    return target.project.id;
   }
   const analystRaw = await db.agents.latestOutput(userId, change.id, "analyst");
   const analyst = analystRaw ? parseAnalystReport(analystRaw) : null;

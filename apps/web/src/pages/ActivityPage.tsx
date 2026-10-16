@@ -22,6 +22,16 @@ export function ActivityPage() {
     }
   }
 
+  async function curate(changeId: string) {
+    setStatus("");
+    try {
+      await api(`/api/changes/${changeId}/curate`, { method: "POST" });
+      setStatus("Curator queued. Open Approvals after it finishes.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Curator failed");
+    }
+  }
+
   return (
     <section>
       <h1>Activity</h1>
@@ -31,8 +41,10 @@ export function ActivityPage() {
       <ul>
         {changes.map((change) => (
           <li key={change.id}>
+            {change.repositoryName ? `${change.repositoryName} · ` : ""}
             {change.fromRevision.slice(0, 7)} → {change.toRevision.slice(0, 7)}
-            {change.significance ? ` · ${change.significance}` : ""} · {change.status} ·{" "}
+            {change.significance ? ` · ${change.significance}` : ""} · {change.status}
+            {change.classification ? ` · ${change.classification}` : ""} ·{" "}
             {new Date(change.createdAt).toLocaleString()}
             {change.summary ? <div>{change.summary}</div> : null}
             {change.status === "ignored" ||
@@ -40,6 +52,13 @@ export function ActivityPage() {
               <div>
                 <button className="ghost" type="button" onClick={() => void analyze(change.id)}>
                   Run analysis
+                </button>
+              </div>
+            ) : null}
+            {change.status === "analyzed" ? (
+              <div>
+                <button className="ghost" type="button" onClick={() => void curate(change.id)}>
+                  Run curator
                 </button>
               </div>
             ) : null}

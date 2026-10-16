@@ -2,7 +2,7 @@ import type { AnalystReport } from "@exokortex/agents";
 import type { LLMProvider } from "@exokortex/llm";
 import { describe, expect, it } from "vitest";
 import type { AnalysisChange } from "./analyze.js";
-import { approvalAction, curateWithFollowups } from "./curate.js";
+import { approvalAction, curateWithFollowups, portfolioTarget } from "./curate.js";
 
 const change: AnalysisChange = {
   id: "chg_1",
@@ -56,6 +56,26 @@ describe("curator", () => {
     expect(report.classification).toBe("NEW_PROJECT");
     expect(report.projectSlug).toBe("hangman");
     expect(approvalAction(report.classification)).toBe("NEW_PROJECT");
+  });
+
+  it("creates a project when an update names a slug that is not in the registry", () => {
+    const projects = [{ id: "proj_hangman", slug: "RAVImitte_Hangman" }];
+    expect(
+      portfolioTarget({
+        action: "UPDATED_PROJECT",
+        projectId: null,
+        projectSlug: "exokortex",
+        projects,
+      }),
+    ).toEqual({ mode: "create" });
+    expect(
+      portfolioTarget({
+        action: "UPDATED_PROJECT",
+        projectId: null,
+        projectSlug: "RAVImitte_Hangman",
+        projects,
+      }),
+    ).toEqual({ mode: "link", project: projects[0] });
   });
 
   it("does not create an approval for an unchanged or ignored project", () => {

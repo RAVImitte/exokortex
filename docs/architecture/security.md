@@ -12,7 +12,7 @@ User credentials are never provided directly to LLM agents.
 
 ## GitHub permissions
 
-**Implemented** as the App you create. The first slice needs read access to metadata. Contents, pull requests, and Actions reads are for the Engineer phase. Write access is **Planned** with that phase. Setup steps are in [github.md](../integrations/github.md).
+**Implemented** as the App you create. Metadata is Read. Contents and Pull requests are Write so the Engineer can open a pull request. Actions stays Read. Setup steps are in [github.md](../integrations/github.md).
 
 Webhook bodies are checked with HMAC-SHA256 (`X-Hub-Signature-256`) before JSON is trusted. A missing or wrong signature is 401.
 

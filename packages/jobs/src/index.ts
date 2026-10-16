@@ -38,6 +38,10 @@ export function forceAnalyzeKey(userId: string, changeId: string, now: Date): st
   return `scan:${userId}:force:${changeId}:${now.toISOString()}`;
 }
 
+export function engineerKey(userId: string, approvalId: string): string {
+  return `engineer:${userId}:${approvalId}`;
+}
+
 export function isLockExpired(
   lockedAt: string,
   now: Date,

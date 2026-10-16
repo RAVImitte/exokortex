@@ -1,10 +1,12 @@
+import { curatorClassification } from "@exokortex/agents";
 import { addFrequency, isRepositoryRole } from "@exokortex/core";
 import { Database } from "@exokortex/database";
 import { forceAnalyzeKey, manualScanKey } from "@exokortex/jobs";
 import { AppError } from "@exokortex/shared";
 import type { Hono } from "hono";
 import type { AppBindings } from "../http/types.js";
-import { enqueueScan } from "../jobs.js";
+import { ensurePortfolioProfile } from "../engineer.js";
+import { enqueueCurate, enqueueScan, githubProvider } from "../jobs.js";
 
 export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
   app.get("/api/repositories", async (c) => {
@@ -17,12 +19,13 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
     if (!body.role || !isRepositoryRole(body.role)) {
       throw new AppError("invalid_role", "Role must be SOURCE, PORTFOLIO, or EXCLUDED");
     }
-    const updated = await new Database(c.env.DB).repos.setRole(
-      c.get("userId"),
-      c.req.param("id"),
-      body.role,
-    );
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const updated = await db.repos.setRole(userId, c.req.param("id"), body.role);
     if (!updated) throw new AppError("not_found", "Repository not found", 404);
+    if (updated.role === "PORTFOLIO") {
+      await ensurePortfolioProfile(db, githubProvider(c.env), userId, updated.id);
+    }
     return c.json(updated);
   });
 
@@ -51,7 +54,46 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
   });
 
   app.get("/api/changes", async (c) => {
-    return c.json({ changes: await new Database(c.env.DB).changes.list(c.get("userId")) });
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const changes = await db.changes.list(userId);
+    const repos = await db.repos.list(userId);
+    const rows = await Promise.all(
+      changes.map(async (change) => {
+        const raw = await db.agents.latestOutput(userId, change.id, "curator");
+        let classification: string | null = null;
+        if (raw) {
+          const parsed = curatorClassification.safeParse(JSON.parse(raw));
+          classification = parsed.success ? parsed.data.classification : null;
+        }
+        return {
+          ...change,
+          repositoryName: repos.find((repo) => repo.id === change.repositoryId)?.name ?? "",
+          classification,
+        };
+      }),
+    );
+    return c.json({ changes: rows });
+  });
+
+  app.post("/api/changes/:id/curate", async (c) => {
+    const db = new Database(c.env.DB);
+    const userId = c.get("userId");
+    const change = await db.changes.get(userId, c.req.param("id"));
+    if (!change) throw new AppError("not_found", "Change not found", 404);
+    if (change.status !== "analyzed") {
+      throw new AppError("not_analyzed", "Analyst must finish before Curator can run", 409);
+    }
+    const analyst = await db.agents.latestOutput(userId, change.id, "analyst");
+    if (!analyst) {
+      throw new AppError("not_analyzed", "Analyst must finish before Curator can run", 409);
+    }
+    const result = await enqueueCurate(c.env, db, {
+      userId,
+      changeId: change.id,
+      idempotencyKey: `curate:${userId}:${change.id}:${new Date().toISOString()}`,
+    });
+    return c.json(result, 202);
   });
 
   app.post("/api/changes/:id/analyze", async (c) => {

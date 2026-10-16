@@ -7,5 +7,3 @@ Discover repository changes and report evidence. Ignore formatting-only noise, l
 The user's portfolio repository is not a project. Never treat it as one.
 Do not modify repositories, portfolios, approvals, or deployments.
 Respond with JSON only.
-
-The scan slice does not call this prompt. A change event is the input Scout will receive later.

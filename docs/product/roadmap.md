@@ -1,43 +1,105 @@
-# Roadmap
+# Slice tracker
 
-Status words: **Implemented**, **Partially implemented**, **Planned**, **Not implemented**.
+This is the only progress list. A slice is done when its acceptance checks pass. Exactly one slice is **current**. Do not start a later slice early. When a slice finishes, update this file in the same change as the code.
 
-## Phase 0 — Infrastructure
+Status words: **Done**, **Current**, **Later**.
 
-**Implemented.** pnpm workspace, Worker, D1 migrations, queue, hourly cron, dev login, dashboard shell.
+## S0 — Infrastructure
 
-## Phase 1 — GitHub scanning
+**Done.**
 
-**Implemented** in code and fixture tests. **Partially implemented** against a real GitHub App: you create the App and fill `.dev.vars` before install, discovery, and webhooks run live. The first scan stores SHAs and does not emit change events. A later differing SHA emits one event. Portfolio and excluded repositories never emit events.
+Entry: an empty repository.
 
-## Phase 2 — LLM abstraction
+Acceptance:
 
-**Implemented.** An OpenAI-compatible client, encrypted `llm_configs`, and a test call that expects the word `pong` are in place. Scout and Analyst call that client. Agent calls request a JSON object.
+- pnpm workspace, Worker, D1 migrations, queue, and hourly cron run locally.
+- Dev login and the dashboard shell work.
 
-## Phase 3 — Scout and Analyst
+## S1 — GitHub scan
 
-**Implemented** for an open change event. Scout classifies the diff. Noise is stored and skipped. Activity can send one noise change to Analyst. Analyst explains the repository from the README and manifests. Both replies are validated JSON. A scan with no new SHA still completes without calling a model, unless an analyzed change is still waiting for Curator. An open change with no saved LLM key fails the job until a key is saved.
+**Done.** A live install still needs your GitHub App and `.dev.vars`. Setup stays in [docs/integrations/github.md](../integrations/github.md).
 
-## Phase 4 — Curator and approval
+Entry: S0 is done.
 
-**Partially implemented.** After Analyst, Curator classifies the repository against the portfolio project list. A new or updated project waits on the Approvals screen. Approving a new project creates it. Rejecting records the decision. The Portfolio Engineer does not run. Curator may ask Analyst up to 5 follow-up questions.
+Acceptance:
 
-## Phase 5 — Portfolio Engineer
+- Install, discovery, and repository roles persist.
+- The first scan stores SHAs and writes no change event.
+- A later differing SHA writes one event.
+- Portfolio and excluded repositories never emit events.
 
-**Planned.** The Engineer will open a pull request. You merge. Auto-merge is a later option, not the default.
+## S2 — LLM
 
-## Phase 6 — Reliability
+**Done.**
 
-**Partially implemented.** Job claim, backoff, a 15-minute lock timeout, and cron reconciliation exist for scans. Email notifications do not.
+Entry: S1 is done.
 
-## Phase 7 — Hugging Face, Kaggle, Google
+Acceptance:
 
-**Not implemented.** The provider interface exists. Each provider throws if called.
+- The user's key is encrypted at rest.
+- An OpenAI-compatible client can call the model.
+- A test call expects the word `pong`.
 
-## Phase 8 — Public beta
+## S3 — Scout and Analyst
 
-**Planned.** Clerk auth is coded and unused until `AUTH_MODE=clerk`. Production deploy steps are documented and not run.
+**Done.**
 
-## Phase 9 — Further integrations
+Entry: S2 is done.
 
-**Planned.** No additional providers beyond the three named above.
+Acceptance:
+
+- An open change with a saved key runs Scout, then Analyst, and both replies are validated JSON.
+- Noise is stored and skipped unless Activity forces analysis.
+- A scan with no new SHA and nothing waiting for Curator completes without a model call.
+
+## S4 — Curator and approval
+
+**Done.** Approving writes a project row. It does not open a pull request. That is why S5 is separate.
+
+Entry: S3 is done.
+
+Acceptance:
+
+- After Analyst, Curator classifies the repository against the portfolio project list.
+- Curator may ask Analyst up to 5 follow-up questions.
+- `NEW_PROJECT` and `UPDATED_PROJECT` wait on the Approvals screen.
+- Approving a new project creates it. Rejecting records the decision.
+- When no approval is still pending, the workflow moves to `COMPLETED`.
+
+## S5 — Portfolio Engineer
+
+**Done.** The Worker isolate is still untested, the same as scan jobs. Orchestrator and GitHub tests use mocks.
+
+Entry: S4 acceptance checks pass.
+
+Acceptance:
+
+- Marking a repository `PORTFOLIO` stores its framework, project-data path, test command, and build command once.
+- Approving the last pending item enqueues an `engineer` job and moves the workflow to `ENGINEERING`.
+- The job edits that data file on a new branch and opens one pull request. The URL is stored and shown on Approvals.
+- A rejection enqueues nothing.
+- Nothing merges the pull request or enters `VALIDATING`, `WAITING_FOR_CI`, or `VERIFYING`. After the pull request exists, the workflow is `COMPLETED`.
+
+## S6 — Email
+
+**Current.**
+
+Entry: S5 acceptance checks pass.
+
+Notify when an approval is waiting and when a pull request is opened. Resend is named in the founding brief and is not wired. Write the steps at the start of this slice.
+
+## S7 — Providers
+
+**Later.** One provider per slice, in this order: Hugging Face, then Kaggle, then Google.
+
+Entry: S6 acceptance checks pass for the first provider. Each following provider starts when the previous provider's slice is done.
+
+The stub that throws in `packages/source-providers` stays until that provider's slice starts.
+
+## S8 — Public beta
+
+**Later.**
+
+Entry: the provider slices you intend to ship are done.
+
+Turn Clerk on as the live auth mode, then follow the documented production deploy. This slice does not add billing, auto-merge, or a second portfolio.

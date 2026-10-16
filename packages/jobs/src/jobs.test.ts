@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backoffMs,
+  engineerKey,
   isLockExpired,
   manualScanKey,
   scanIdempotencyKey,
@@ -20,6 +21,7 @@ describe("retry policy", () => {
 describe("idempotency keys", () => {
   it("is stable for the same revision and the same minute", () => {
     expect(scanIdempotencyKey("u", "r", "abc")).toBe("scan:u:r:abc");
+    expect(engineerKey("u", "apr_1")).toBe("engineer:u:apr_1");
     const now = new Date("2026-10-16T02:49:40.000Z");
     expect(manualScanKey("u", now)).toBe(manualScanKey("u", new Date("2026-10-16T02:49:59.000Z")));
     expect(manualScanKey("u", now)).not.toBe(

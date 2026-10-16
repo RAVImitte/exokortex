@@ -9,6 +9,7 @@ export interface ApprovalRow {
   action: string;
   status: string;
   reason: string | null;
+  pull_request_url: string | null;
   created_at: string;
 }
 
@@ -21,6 +22,7 @@ export interface ApprovalRecord {
   action: string;
   status: string;
   reason: string | null;
+  pullRequestUrl: string | null;
   createdAt: string;
 }
 
@@ -34,6 +36,7 @@ function toApproval(row: ApprovalRow): ApprovalRecord {
     action: row.action,
     status: row.status,
     reason: row.reason,
+    pullRequestUrl: row.pull_request_url,
     createdAt: row.created_at,
   };
 }
@@ -78,6 +81,7 @@ export class ApprovalRepository {
       action: input.action,
       status: "pending",
       reason: input.reason,
+      pullRequestUrl: null,
       createdAt: now,
     };
   }
@@ -108,6 +112,31 @@ export class ApprovalRepository {
       .bind(userId)
       .all<ApprovalRow>();
     return rows.results.map(toApproval);
+  }
+
+  async listApprovedWithoutPullRequest(
+    userId: string,
+    workflowId: string,
+  ): Promise<ApprovalRecord[]> {
+    const rows = await this.db
+      .prepare(
+        `SELECT * FROM approvals
+         WHERE user_id = ? AND workflow_id = ? AND status = 'approved' AND pull_request_url IS NULL
+         ORDER BY created_at`,
+      )
+      .bind(userId, workflowId)
+      .all<ApprovalRow>();
+    return rows.results.map(toApproval);
+  }
+
+  async setPullRequestUrl(userId: string, approvalId: string, url: string): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE approvals SET pull_request_url = ?
+         WHERE id = ? AND user_id = ? AND pull_request_url IS NULL`,
+      )
+      .bind(url, approvalId, userId)
+      .run();
   }
 
   async listPending(userId: string, workflowId: string): Promise<ApprovalRecord[]> {

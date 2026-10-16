@@ -1,13 +1,14 @@
 import { scoutReport, type ScoutReport } from "@exokortex/agents";
 import { limits, type WorkflowState } from "@exokortex/core";
 import { Database } from "@exokortex/database";
-import { GitHubProvider } from "@exokortex/github";
-import { maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex/jobs";
+import { explainGitHubWriteError, GitHubProvider } from "@exokortex/github";
+import { engineerKey, maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex/jobs";
 import { OpenAICompatibleProvider, type LLMProvider } from "@exokortex/llm";
 import {
   analyzeChange,
   analystContextFiles,
   approvalAction,
+  portfolioTarget,
   curateWithFollowups,
   parseAnalystReport,
   runAgentPass,
@@ -20,6 +21,7 @@ import {
 import { decryptString, importAesKey } from "@exokortex/security";
 import { log, nowIso } from "@exokortex/shared";
 import type { Env, JobMessage } from "./env.js";
+import { runEngineerJob } from "./engineer.js";
 
 export function githubProvider(env: Env): GitHubProvider | null {
   if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) return null;
@@ -60,12 +62,112 @@ export async function enqueueScan(
   return { created: true, jobId: job.id };
 }
 
+export async function enqueueCurate(
+  env: Env,
+  db: Database,
+  input: { userId: string; changeId: string; idempotencyKey: string },
+): Promise<{ created: boolean; jobId: string }> {
+  const now = nowIso();
+  const { job, created } = await db.jobs.insert({
+    userId: input.userId,
+    type: "curate",
+    payload: { changeEventId: input.changeId },
+    idempotencyKey: input.idempotencyKey,
+    maxAttempts: maxAttemptsFor("scan"),
+    now,
+  });
+  if (!created) return { created: false, jobId: job.id };
+  const workflow = await db.workflows.create(input.userId, "CURATING", now);
+  await db.jobs.attachWorkflow(job.id, workflow.id);
+  await env.JOBS.send({ jobId: job.id } satisfies JobMessage);
+  return { created: true, jobId: job.id };
+}
+
+export async function enqueueEngineer(
+  db: Database,
+  input: {
+    userId: string;
+    workflowId: string | null;
+    approvalId: string;
+    installationId: string;
+  },
+): Promise<{ created: boolean; jobId: string }> {
+  const { job, created } = await db.jobs.insert({
+    userId: input.userId,
+    workflowId: input.workflowId,
+    type: "engineer",
+    payload: { approvalId: input.approvalId, installationId: input.installationId },
+    idempotencyKey: engineerKey(input.userId, input.approvalId),
+    maxAttempts: maxAttemptsFor("engineer"),
+  });
+  return { created, jobId: job.id };
+}
+
 export async function handleJob(env: Env, jobId: string): Promise<void> {
   const db = new Database(env.DB);
   const now = nowIso();
   const claimed = await db.jobs.claim(jobId, now);
   if (!claimed) return;
   try {
+    if (claimed.type === "engineer") {
+      const payload = JSON.parse(claimed.payloadJson) as {
+        approvalId?: string;
+        installationId?: string;
+      };
+      if (!payload.approvalId || !payload.installationId) {
+        throw new Error("engineer job is missing its payload");
+      }
+      const provider = githubProvider(env);
+      if (!provider) throw new Error("GitHub App is not configured");
+      await runEngineerJob({
+        db,
+        provider,
+        llm: await userLlm(env, db, claimed.userId),
+        userId: claimed.userId,
+        approvalId: payload.approvalId,
+        installationId: payload.installationId,
+      });
+      await db.jobs.complete(jobId, now);
+      if (claimed.workflowId) {
+        const active = await db.jobs.countActive(claimed.workflowId, "engineer", jobId);
+        if (active === 0) {
+          await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
+        }
+      }
+      log("info", "engineer completed", { userId: claimed.userId, jobId });
+      return;
+    }
+    if (claimed.type === "curate") {
+      const payload = JSON.parse(claimed.payloadJson) as { changeEventId?: string };
+      if (!payload.changeEventId) throw new Error("curate job is missing a change id");
+      const llm = await userLlm(env, db, claimed.userId);
+      await curateReady(
+        db,
+        llm,
+        claimed.userId,
+        claimed.workflowId,
+        undefined,
+        now,
+        payload.changeEventId,
+      );
+      const pending = claimed.workflowId
+        ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
+        : [];
+      await move(
+        db,
+        claimed.userId,
+        claimed.workflowId,
+        pending.length > 0 ? "PENDING_APPROVAL" : "COMPLETED",
+        now,
+      );
+      await db.jobs.complete(jobId, now);
+      log("info", "curate completed", {
+        userId: claimed.userId,
+        jobId,
+        pendingApprovals: pending.length,
+      });
+      return;
+    }
     if (claimed.type !== "scan") throw new Error(`unsupported job type ${claimed.type}`);
     const payload = JSON.parse(claimed.payloadJson) as {
       installationId?: string;
@@ -227,7 +329,8 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       pendingApprovals: pending.length,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "scan failed";
+    const raw = error instanceof Error ? error.message : "job failed";
+    const message = claimed.type === "engineer" ? explainGitHubWriteError(raw) : raw;
     const retry = shouldRetry(claimed.attempts, claimed.maxAttempts);
     await db.jobs.fail(
       jobId,
@@ -242,7 +345,12 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         log("warn", "could not mark workflow failed", { jobId, userId: claimed.userId });
       }
     }
-    log("error", "scan failed", { userId: claimed.userId, jobId, error: message });
+    log("error", "job failed", {
+      userId: claimed.userId,
+      jobId,
+      type: claimed.type,
+      error: message,
+    });
   }
 }
 
@@ -253,8 +361,11 @@ async function curateReady(
   workflowId: string | null,
   repositoryId: string | undefined,
   now: string,
+  onlyChangeId?: string,
 ): Promise<void> {
-  const ready = await db.changes.listReadyForCurator(userId, repositoryId);
+  const ready = onlyChangeId
+    ? [await oneChange(db, userId, onlyChangeId)]
+    : await db.changes.listReadyForCurator(userId, repositoryId);
   if (ready.length === 0) return;
   await move(db, userId, workflowId, "CURATING", now);
   const projects = await db.projects.list(userId);
@@ -290,19 +401,31 @@ async function curateReady(
     });
     const action = approvalAction(report.classification);
     if (!action || (await db.approvals.findByChange(userId, change.id))) continue;
-    const matched = report.projectSlug
-      ? projects.find((project) => project.slug === report.projectSlug)
-      : undefined;
+    const target = portfolioTarget({
+      action,
+      projectId: null,
+      projectSlug: report.projectSlug,
+      projects,
+    });
     await db.approvals.create({
       userId,
-      projectId: matched?.id ?? null,
+      projectId: target.mode === "link" ? target.project.id : null,
       changeEventId: change.id,
       workflowId,
-      action,
+      action: target.mode === "create" ? "NEW_PROJECT" : action,
       reason: report.reason,
       now,
     });
   }
+}
+
+async function oneChange(db: Database, userId: string, changeId: string) {
+  const change = await db.changes.get(userId, changeId);
+  if (!change) throw new Error("change not found");
+  if (change.status !== "analyzed") throw new Error("Analyst has not finished this change");
+  const analyst = await db.agents.latestOutput(userId, change.id, "analyst");
+  if (!analyst) throw new Error("Analyst has not run for this change");
+  return change;
 }
 
 async function move(
@@ -348,7 +471,7 @@ async function scoutFor(
 async function userLlm(env: Env, db: Database, userId: string): Promise<LLMProvider> {
   const config = await db.llm.get(userId);
   const cipher = await db.llm.ciphertext(userId);
-  if (!config || !cipher) throw new Error("Save an LLM config before Scout can run");
+  if (!config || !cipher) throw new Error("Save an LLM config before an agent can run");
   const apiKey = await decryptString(await importAesKey(env.ENCRYPTION_KEY), cipher);
   return new OpenAICompatibleProvider({ baseUrl: config.baseUrl, apiKey, model: config.model });
 }

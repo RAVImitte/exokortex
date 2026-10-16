@@ -57,15 +57,20 @@ export interface ApprovalRow {
   action: string;
   status: string;
   reason: string | null;
+  pullRequestUrl: string | null;
+  engineerStatus: string | null;
+  engineerError: string | null;
   createdAt: string;
 }
 
 export interface ChangeRow {
   id: string;
+  repositoryName?: string;
   fromRevision: string;
   toRevision: string;
   summary: string | null;
   significance: string | null;
   status: string;
+  classification?: string | null;
   createdAt: string;
 }

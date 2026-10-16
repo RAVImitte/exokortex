@@ -58,10 +58,10 @@ Packages do not call each other in circles. The Worker is the composition root. 
 | `@exokortex/jobs`             | Idempotency keys, backoff, lock expiry.                                                        |
 | `@exokortex/database`         | Numbered SQL migrations and one repository class per table group.                              |
 | `@exokortex/source-providers` | The provider interface. Hugging Face, Kaggle, and Google throw “not implemented”.              |
-| `@exokortex/github`           | GitHub App JWT, installation tokens, repository discovery, commit SHAs.                        |
-| `@exokortex/orchestrator`     | Deterministic scan: baseline, change, or unchanged.                                            |
+| `@exokortex/github`           | GitHub App JWT, installation tokens, repository discovery, commit SHAs, pull requests.         |
+| `@exokortex/orchestrator`     | Scan, Scout, Analyst, Curator, and the Engineer edit.                                          |
 | `@exokortex/llm`              | OpenAI-compatible `POST /chat/completions`.                                                    |
-| `@exokortex/agents`           | Prompt text and Zod schemas. Agent execution is not wired up yet.                              |
+| `@exokortex/agents`           | Prompt text and Zod schemas for Scout, Analyst, Curator, and the Engineer.                     |
 | `@exokortex/worker`           | HTTP routes, auth, queue consumer, cron.                                                       |
 | `@exokortex/web`              | Dashboard.                                                                                     |
 
@@ -74,6 +74,7 @@ Packages do not call each other in circles. The Worker is the composition root. 
 - `github.ts` — App install, callback, webhooks, connections
 - `repositories.ts` — repository list, role changes, scan-now, change events
 - `llm.ts` — save and test a bring-your-own key
+- `approvals.ts` — project list and approve or reject
 
 `app.ts` only registers middleware and those route modules. Public paths (health, dev login, logout, GitHub callback, webhook) skip the session check. Everything else requires a user.
 
@@ -90,7 +91,7 @@ Errors that the app throws on purpose are `AppError` and return `{ error: { code
 
 The production build is static files. The Worker serves them. There is no Next.js server and no second hosting project.
 
-Screens that exist: login, dashboard, repositories, connections, activity, AI settings, account settings. Projects and approvals are labeled planned.
+Screens that exist: login, dashboard, repositories, connections, activity, AI settings, account settings, projects, and approvals. Progress lives in the [slice tracker](../product/roadmap.md).
 
 ## Authentication
 
@@ -111,7 +112,7 @@ Integration is a [GitHub App](https://docs.github.com/apps), not a personal acce
 2. The Worker encrypts `{ installationId }` and stores that ciphertext on the connection row.
 3. Each GitHub call mints an App JWT (RS256, Web Crypto), exchanges it for an installation token, and drops the token when the call finishes. Installation tokens are not written to D1.
 
-The first slice asks GitHub for repository metadata and the latest commit on the default branch. Contents, pull requests, and Actions are read later, when the Portfolio Engineer exists. Webhooks (`push`, `installation`, `installation_repositories`) are verified with HMAC-SHA256 (`X-Hub-Signature-256`) before any job is enqueued.
+GitHub calls read repository metadata, the latest commit, and file contents. The Engineer writes one project-data file on a new branch and opens a pull request. Actions are read later. Webhooks (`push`, `installation`, `installation_repositories`) are verified with HMAC-SHA256 (`X-Hub-Signature-256`) before any job is enqueued.
 
 ## Data
 
@@ -131,13 +132,13 @@ Important uniqueness rules:
 
 The first successful scan of a repository stores the commit SHA and does not emit a change event. A later scan emits one event only when the SHA differs. Portfolio and excluded repositories never emit change events.
 
-## Work that runs later
+## Workflow
 
-Scan jobs move a workflow row through a state machine in `@exokortex/core`. Illegal transitions throw. The slice uses:
+Scan jobs move a workflow row through a state machine in `@exokortex/core`. Illegal transitions throw. A scan with agent work uses:
 
-`SCAN_PENDING` → `SCANNING` → `COMPLETED` or `FAILED`
+`SCAN_PENDING` → `SCANNING` → `SCOUTING` → `ANALYZING` → `CURATING` → `PENDING_APPROVAL` or `COMPLETED`
 
-Later states (`SCOUTING`, `ANALYZING`, `CURATING`, `PENDING_APPROVAL`, `ENGINEERING`, and the CI states) are defined so the machine cannot be skipped, but no agent runs them yet.
+A scan with nothing to classify stops at `COMPLETED` after `SCANNING`. Approving the last waiting item moves `PENDING_APPROVAL` to `ENGINEERING`. The engineer job then moves that workflow to `COMPLETED`. `VALIDATING`, `WAITING_FOR_CI`, and `VERIFYING` are defined and unused. A failure moves to `FAILED` when that transition is legal. Progress lives in the [slice tracker](../product/roadmap.md).
 
 A failed scan retries with backoff (`30s * 2^(attempt-1)`, capped at 6 hours) up to 3 attempts. A lock older than 15 minutes is released by the cron. Retrying a scan that is already `SCANNING` is not a new transition; the handler keeps going.
 
@@ -149,6 +150,7 @@ Idempotency keys:
 | Scan now      | `scan:{userId}:manual:{minute}`            |
 | First connect | `scan:{userId}:bootstrap:{installationId}` |
 | Cron          | `scan:{userId}:scheduled:{nextScanAt}`     |
+| Engineer      | `engineer:{userId}:{approvalId}`           |
 
 ## Secrets and the model
 
@@ -161,9 +163,9 @@ Idempotency keys:
 
 Ciphertext is `v1:<iv>:<cipher>`, so a future key version can be told apart from the current one.
 
-The LLM client speaks the OpenAI chat-completions shape. Any compatible base URL works. ExoKortex does not pay for inference and does not send credentials to the model. Prompt strings and a Zod schema for the Curator exist now. Scout, Analyst, Curator, and Portfolio Engineer execution is still ahead.
+The LLM client speaks the OpenAI chat-completions shape. Any compatible base URL works. ExoKortex does not pay for inference and does not send credentials to the model. Scout, Analyst, and Curator run from the scan job. The Engineer runs from its own job. All four return validated JSON.
 
-Planned product behavior that is documented in the founding brief but not built: portfolio pull requests (the user merges; auto-merge is later), Resend email, Turnstile, and GitHub Actions on the user’s portfolio repository.
+Still ahead, in tracker order: Resend email, Turnstile, and GitHub Actions on the user’s portfolio repository. The user merges pull requests. Auto-merge stays off.
 
 ## What this stack deliberately leaves out
 

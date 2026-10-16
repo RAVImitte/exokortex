@@ -6,6 +6,7 @@ import { ConnectionRepository } from "./repositories/connections.js";
 import { DashboardRepository } from "./repositories/dashboard.js";
 import { JobRepository } from "./repositories/jobs.js";
 import { LlmConfigRepository } from "./repositories/llm-configs.js";
+import { PortfolioProfileRepository } from "./repositories/portfolio-profiles.js";
 import { PortfolioProjectRepository } from "./repositories/projects.js";
 import { TrackedRepositoryRepository } from "./repositories/repositories.js";
 import { UserRepository } from "./repositories/users.js";
@@ -22,6 +23,7 @@ export class Database {
   readonly audit: AuditRepository;
   readonly llm: LlmConfigRepository;
   readonly projects: PortfolioProjectRepository;
+  readonly profiles: PortfolioProfileRepository;
   readonly approvals: ApprovalRepository;
   readonly dashboard: DashboardRepository;
 
@@ -36,6 +38,7 @@ export class Database {
     this.audit = new AuditRepository(d1);
     this.llm = new LlmConfigRepository(d1);
     this.projects = new PortfolioProjectRepository(d1);
+    this.profiles = new PortfolioProfileRepository(d1);
     this.approvals = new ApprovalRepository(d1);
     this.dashboard = new DashboardRepository(d1);
   }

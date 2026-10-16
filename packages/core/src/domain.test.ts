@@ -70,11 +70,16 @@ describe("workflow transitions", () => {
     expect(assertTransition("SCANNING", "COMPLETED")).toBe("COMPLETED");
     expect(assertTransition("SCANNING", "CURATING")).toBe("CURATING");
     expect(assertTransition("CURATING", "PENDING_APPROVAL")).toBe("PENDING_APPROVAL");
+    expect(assertTransition("PENDING_APPROVAL", "ENGINEERING")).toBe("ENGINEERING");
+    expect(assertTransition("ENGINEERING", "COMPLETED")).toBe("COMPLETED");
   });
 
   it("rejects an illegal transition", () => {
     expect(() => assertTransition("COMPLETED", "SCANNING")).toThrow(/Illegal workflow transition/);
     expect(() => assertTransition("SCAN_PENDING", "ENGINEERING")).toThrow(
+      /Illegal workflow transition/,
+    );
+    expect(() => assertTransition("ENGINEERING", "VERIFYING")).toThrow(
       /Illegal workflow transition/,
     );
   });

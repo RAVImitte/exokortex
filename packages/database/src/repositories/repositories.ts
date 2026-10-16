@@ -83,6 +83,14 @@ export class TrackedRepositoryRepository {
     return rows.results.map(toRepository);
   }
 
+  async findByRole(userId: string, role: RepositoryRole): Promise<RepositoryRecord | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM repositories WHERE user_id = ? AND role = ? LIMIT 1")
+      .bind(userId, role)
+      .first<RepositoryRow>();
+    return row ? toRepository(row) : null;
+  }
+
   async find(userId: string, repositoryId: string): Promise<RepositoryRecord | null> {
     const row = await this.db
       .prepare("SELECT * FROM repositories WHERE id = ? AND user_id = ?")

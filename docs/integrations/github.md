@@ -8,14 +8,14 @@ ExoKortex uses a GitHub App. It does not store a personal access token. Each API
 
 Create the App under your GitHub account or organization. Set these repository permissions:
 
-| Permission    | Access now | Why                                                                                             |
-| ------------- | ---------- | ----------------------------------------------------------------------------------------------- |
-| Metadata      | Read       | List installations and repositories.                                                            |
-| Contents      | Read       | Scout and Analyst read changed files, READMEs, and manifests. Write arrives with the Engineer. |
-| Pull requests | Read       | Read pull request state. Write arrives with the Engineer.                                       |
-| Actions       | Read       | Read the portfolio’s CI result later.                                                           |
+| Permission    | Access now | Why                                                                                  |
+| ------------- | ---------- | ------------------------------------------------------------------------------------ |
+| Metadata      | Read       | List installations and repositories.                                                 |
+| Contents      | Write      | Scout and Analyst read files. The Engineer writes one project-data file on a branch. |
+| Pull requests | Write      | The Engineer opens a pull request. Nothing in ExoKortex merges it.                   |
+| Actions       | Read       | Read the portfolio’s CI result later.                                                |
 
-Leave other permissions at No access. Write access to contents and pull requests waits for the current slice, S5 in the [slice tracker](../product/roadmap.md). Do not grant it yet.
+Leave other permissions at No access. If the App was created with Contents or Pull requests set to Read, change both to Read and write and save the App. GitHub then asks you to approve the new permissions on the existing installation. Until that approval, the installation stays Read and a pull request returns 403. Metadata stays Read.
 
 Subscribe to these events:
 
@@ -29,11 +29,11 @@ While `pnpm dev` is running, the browser origin is http://localhost:5173 and the
 
 Leave **Request user authorization (OAuth) during installation** unchecked. GitHub then shows a **Setup URL**. That is where the browser goes after install, with `installation_id` and `state`.
 
-| GitHub field   | Local value                                             |
-| -------------- | ------------------------------------------------------- |
-| Setup URL      | `http://127.0.0.1:8787/api/github/callback`             |
-| Callback URL   | Leave empty. This is only the OAuth redirect.           |
-| Webhook URL    | See the tunnel section. GitHub cannot call `127.0.0.1`. |
+| GitHub field   | Local value                                                  |
+| -------------- | ------------------------------------------------------------ |
+| Setup URL      | `http://127.0.0.1:8787/api/github/callback`                  |
+| Callback URL   | Leave empty. This is only the OAuth redirect.                |
+| Webhook URL    | See the tunnel section. GitHub cannot call `127.0.0.1`.      |
 | Webhook secret | A long random string. Same value as `GITHUB_WEBHOOK_SECRET`. |
 
 Check **Redirect on update** so adding or removing repositories hits the Setup URL again.

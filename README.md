@@ -2,11 +2,11 @@
 
 ExoKortex watches your project repositories and keeps one portfolio repository up to date, using your own LLM key.
 
-Slices through Curator and approval are done. The current slice is the Portfolio Engineer, which does not open pull requests yet.
+Slices through the Portfolio Engineer are done. The current slice is email when an approval is waiting or a pull request opens.
 
 ## Status
 
-Progress lives in the [slice tracker](docs/product/roadmap.md). S0 through S4 are done. S5 Portfolio Engineer is current.
+Progress lives in the [slice tracker](docs/product/roadmap.md). S0 through S5 are done. S6 Email is current.
 
 ## Run it
 

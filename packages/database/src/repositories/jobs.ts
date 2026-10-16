@@ -111,6 +111,51 @@ export class JobRepository {
       .run();
   }
 
+  async countActive(workflowId: string, type: string, exceptJobId: string): Promise<number> {
+    const row = await this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM jobs
+         WHERE workflow_id = ? AND type = ? AND id != ? AND status IN ('pending', 'locked')`,
+      )
+      .bind(workflowId, type, exceptJobId)
+      .first<{ n: number }>();
+    return row?.n ?? 0;
+  }
+
+  async listByType(userId: string, type: string): Promise<JobRecord[]> {
+    const rows = await this.db
+      .prepare(
+        "SELECT * FROM jobs WHERE user_id = ? AND type = ? ORDER BY created_at DESC LIMIT 50",
+      )
+      .bind(userId, type)
+      .all<JobRow>();
+    return rows.results.map(toJob);
+  }
+
+  async listDue(now: string): Promise<JobRecord[]> {
+    const rows = await this.db
+      .prepare(
+        `SELECT * FROM jobs
+         WHERE status = 'pending' AND next_run_at IS NOT NULL AND next_run_at <= ?
+         ORDER BY next_run_at LIMIT 50`,
+      )
+      .bind(now)
+      .all<JobRow>();
+    return rows.results.map(toJob);
+  }
+
+  async requeue(userId: string, jobId: string, now: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE jobs
+         SET status = 'pending', attempts = 0, next_run_at = NULL, locked_at = NULL, last_error = NULL, updated_at = ?
+         WHERE id = ? AND user_id = ? AND status IN ('pending', 'failed')`,
+      )
+      .bind(now, jobId, userId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
   async listStuck(lockedBefore: string): Promise<JobRecord[]> {
     const rows = await this.db
       .prepare(

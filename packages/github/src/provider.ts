@@ -94,6 +94,111 @@ export class GitHubProvider implements SourceProvider {
     return { path, content };
   }
 
+  async listTree(
+    connection: ProviderConnection,
+    repository: ProviderRepository,
+  ): Promise<string[]> {
+    const token = await this.client.installationToken(connection.installationId);
+    const branch = encodeURIComponent(repository.defaultBranch);
+    try {
+      const body = await this.client.request<{ tree?: { path?: string; type?: string }[] }>(
+        `/repos/${repository.name}/git/trees/${branch}?recursive=1`,
+        token,
+      );
+      return (body.tree ?? [])
+        .flatMap((item) => (item.type === "blob" && item.path ? [item.path] : []))
+        .slice(0, 10_000);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("returned 409")) return [];
+      throw error;
+    }
+  }
+
+  async openPullRequest(input: {
+    connection: ProviderConnection;
+    repository: ProviderRepository;
+    branch: string;
+    path: string;
+    content: string;
+    commitMessage: string;
+    prTitle: string;
+    prBody: string;
+  }): Promise<{ url: string }> {
+    const token = await this.client.installationToken(input.connection.installationId);
+    const base = await this.client.request<{ sha: string }>(
+      `/repos/${input.repository.name}/commits/${encodeURIComponent(input.repository.defaultBranch)}`,
+      token,
+    );
+    try {
+      await this.client.request(`/repos/${input.repository.name}/git/refs`, token, {
+        method: "POST",
+        body: JSON.stringify({ ref: `refs/heads/${input.branch}`, sha: base.sha }),
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("returned 422")) throw error;
+    }
+    const existingSha = await this.fileSha(token, input.repository.name, input.path, input.branch);
+    const payload: { message: string; content: string; branch: string; sha?: string } = {
+      message: input.commitMessage,
+      content: encodeBase64(input.content),
+      branch: input.branch,
+    };
+    if (existingSha) payload.sha = existingSha;
+    await this.client.request(`/repos/${input.repository.name}/contents/${input.path}`, token, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    });
+    const owner = input.repository.name.split("/")[0] ?? "";
+    try {
+      const pull = await this.client.request<{ html_url?: string }>(
+        `/repos/${input.repository.name}/pulls`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: input.prTitle,
+            head: input.branch,
+            base: input.repository.defaultBranch,
+            body: input.prBody,
+          }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      if (!pull.html_url) throw new Error("GitHub pull request did not return a url");
+      return { url: pull.html_url };
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("returned 422")) throw error;
+      const head = encodeURIComponent(`${owner}:${input.branch}`);
+      const pulls = await this.client.request<{ html_url?: string }[]>(
+        `/repos/${input.repository.name}/pulls?head=${head}&state=open`,
+        token,
+      );
+      const url = pulls[0]?.html_url;
+      if (!url) throw error;
+      return { url };
+    }
+  }
+
+  private async fileSha(
+    token: string,
+    name: string,
+    path: string,
+    branch: string,
+  ): Promise<string | null> {
+    try {
+      const file = await this.client.request<{ sha?: string }>(
+        `/repos/${name}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+        token,
+      );
+      return file.sha ?? null;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("returned 404")) return null;
+      throw error;
+    }
+  }
+
   async searchRepository(
     connection: ProviderConnection,
     repository: ProviderRepository,
@@ -108,6 +213,13 @@ export class GitHubProvider implements SourceProvider {
       text: item.text_matches?.[0]?.fragment ?? "",
     }));
   }
+}
+
+function encodeBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 export type { GitHubAppConfig };
