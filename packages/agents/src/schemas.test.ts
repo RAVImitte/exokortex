@@ -1,0 +1,13 @@
+import { describe, expect, it } from "vitest";
+import { analystReport } from "./schemas.js";
+
+describe("analyst report", () => {
+  it("fills fields a small model leaves out", () => {
+    const report = analystReport.parse({ summary: "only a summary" });
+    expect(report.purpose).toBe("Not stated.");
+    expect(report.architecture).toBe("Not stated.");
+    expect(report.technologies).toEqual([]);
+    expect(report.relationships).toEqual([]);
+    expect(report.evidence).toEqual([]);
+  });
+});

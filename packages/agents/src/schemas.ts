@@ -18,10 +18,10 @@ export const scoutReport = z.object({
 export type ScoutReport = z.infer<typeof scoutReport>;
 
 export const analystReport = z.object({
-  purpose: z.string().min(1),
-  architecture: z.string().min(1),
-  technologies: z.array(z.string()).max(20),
-  relationships: z.array(z.string()).max(10),
+  purpose: z.string().min(1).catch("Not stated."),
+  architecture: z.string().min(1).catch("Not stated."),
+  technologies: z.array(z.string()).max(20).catch([]),
+  relationships: z.array(z.string()).max(10).catch([]),
   evidence: z
     .array(
       z.object({
@@ -29,7 +29,8 @@ export const analystReport = z.object({
         quote: z.string(),
       }),
     )
-    .max(10),
+    .max(10)
+    .catch([]),
 });
 
 export type AnalystReport = z.infer<typeof analystReport>;

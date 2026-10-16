@@ -6,12 +6,26 @@ export interface Me {
   nextScanAt: string | null;
 }
 
+export interface DashboardActivity {
+  id: string;
+  repositoryName: string;
+  fromRevision: string;
+  toRevision: string;
+  summary: string | null;
+  significance: string | null;
+  status: string;
+  createdAt: string;
+}
+
 export interface DashboardSnapshot {
   repositoryCount: number;
   portfolioProjectCount: number;
   pendingApprovals: number;
   lastScan: string | null;
   nextScan: string | null;
+  githubConnected: boolean;
+  llmConfigured: boolean;
+  recentActivity: DashboardActivity[];
 }
 
 export interface RepositoryRow {
