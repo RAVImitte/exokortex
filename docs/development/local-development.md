@@ -25,12 +25,12 @@ pnpm dev
 
 | Process                        | URL                   | Role                                     |
 | ------------------------------ | --------------------- | ---------------------------------------- |
-| Vite (`@exokortex/web`)        | http://127.0.0.1:5173 | Dashboard. Proxies `/api` to the Worker. |
+| Vite (`@exokortex/web`)        | http://localhost:5173 | Dashboard. Proxies `/api` to the Worker. |
 | Wrangler (`@exokortex/worker`) | http://127.0.0.1:8787 | API, local D1, queue, and cron.          |
 
-Open http://127.0.0.1:5173 and sign in with any email. Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
+Open http://localhost:5173 and sign in with any email. Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
 
-`APP_BASE_URL` in `.dev.vars` should stay `http://127.0.0.1:5173` so the GitHub install callback returns to the Vite app.
+`APP_BASE_URL` in `.dev.vars` should stay `http://localhost:5173` so the GitHub install callback returns to the Vite app.
 
 ## What you can exercise
 

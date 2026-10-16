@@ -10,7 +10,7 @@ if (existsSync(target)) {
   const example = readFileSync("apps/worker/.dev.vars.example", "utf8");
   const contents = example
     .replace("ENCRYPTION_KEY=", `ENCRYPTION_KEY=${key}`)
-    .replace("APP_BASE_URL=http://127.0.0.1:8787", "APP_BASE_URL=http://127.0.0.1:5173");
+    .replace("APP_BASE_URL=http://127.0.0.1:8787", "APP_BASE_URL=http://localhost:5173");
   writeFileSync(target, contents);
   console.log(`Wrote ${target} with a new encryption key.`);
 }
@@ -18,4 +18,4 @@ if (existsSync(target)) {
 console.log("Next:");
 console.log("  pnpm db:migrate:local");
 console.log("  pnpm dev");
-console.log("Open http://127.0.0.1:5173 and sign in with any email.");
+console.log("Open http://localhost:5173 and sign in with any email.");

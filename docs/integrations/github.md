@@ -8,14 +8,14 @@ ExoKortex uses a GitHub App. It does not store a personal access token. Each API
 
 Create the App under your GitHub account or organization. Set these repository permissions:
 
-| Permission    | Access now | Why                                                           |
-| ------------- | ---------- | ------------------------------------------------------------- |
-| Metadata      | Read       | List installations and repositories. Required for this slice. |
-| Contents      | Read       | Read files when Scout and Analyst run. Not called yet.        |
-| Pull requests | Read       | Read pull request state. Write arrives with the Engineer.     |
-| Actions       | Read       | Read the portfolio’s CI result later.                         |
+| Permission    | Access now | Why                                                                                             |
+| ------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| Metadata      | Read       | List installations and repositories.                                                            |
+| Contents      | Read       | Scout and Analyst read changed files, READMEs, and manifests. Write arrives with the Engineer. |
+| Pull requests | Read       | Read pull request state. Write arrives with the Engineer.                                       |
+| Actions       | Read       | Read the portfolio’s CI result later.                                                           |
 
-Leave other permissions at No access. Write access to contents and pull requests is **Planned** for the Engineer phase. Do not grant it yet.
+Leave other permissions at No access. Write access to contents and pull requests waits for the current slice, S5 in the [slice tracker](../product/roadmap.md). Do not grant it yet.
 
 Subscribe to these events:
 
@@ -25,7 +25,7 @@ Subscribe to these events:
 
 ## URLs
 
-While `pnpm dev` is running, the browser origin is http://127.0.0.1:5173 and the Worker is http://127.0.0.1:8787.
+While `pnpm dev` is running, the browser origin is http://localhost:5173 and the Worker is http://127.0.0.1:8787.
 
 Leave **Request user authorization (OAuth) during installation** unchecked. GitHub then shows a **Setup URL**. That is where the browser goes after install, with `installation_id` and `state`.
 
@@ -40,7 +40,7 @@ Check **Redirect on update** so adding or removing repositories hits the Setup U
 
 If OAuth during installation is already checked, GitHub hides the Setup URL. Put `http://127.0.0.1:8787/api/github/callback` in **Callback URL** instead.
 
-`APP_BASE_URL` in `.dev.vars` (`http://127.0.0.1:5173`) is not a GitHub field. After the Worker stores the installation, it sends the browser there, to `/repositories`.
+`APP_BASE_URL` in `.dev.vars` (`http://localhost:5173`) is not a GitHub field. After the Worker stores the installation, it sends the browser there, to `/repositories`.
 
 After GitHub shows the App’s numeric id, slug, and a PEM private key, put them in `apps/worker/.dev.vars`:
 
@@ -49,7 +49,7 @@ GITHUB_APP_ID=
 GITHUB_APP_SLUG=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_WEBHOOK_SECRET=
-APP_BASE_URL=http://127.0.0.1:5173
+APP_BASE_URL=http://localhost:5173
 ```
 
 The private key may use literal `\n` for newlines. Restart `pnpm dev` after editing `.dev.vars`.
