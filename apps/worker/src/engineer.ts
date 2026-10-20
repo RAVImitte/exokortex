@@ -7,6 +7,7 @@ import {
   profileManifests,
   projectDataFile,
   proposeEngineerEdit,
+  templateContractFromMarker,
 } from "@exokortex/orchestrator";
 import type { Database } from "@exokortex/database";
 
@@ -88,7 +89,17 @@ export async function runEngineerJob(input: {
   };
   const connectionRef = { installationId: input.installationId };
   const dataPath = projectDataFile(profile.projectDataPath, project.slug);
-  const editProfile = { ...profile, projectDataPath: dataPath };
+  let marker: string | null = null;
+  try {
+    marker = (await input.provider.getFile(connectionRef, githubRepo, "exokortex.json")).content;
+  } catch {
+    // A missing marker means a hand-built portfolio. The initial null stands.
+  }
+  const editProfile = {
+    ...profile,
+    projectDataPath: dataPath,
+    contract: templateContractFromMarker(marker),
+  };
   let currentContent: string | null;
   try {
     currentContent = (await input.provider.getFile(connectionRef, githubRepo, dataPath)).content;

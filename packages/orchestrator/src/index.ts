@@ -29,6 +29,7 @@ export {
   discoverPortfolioProfile,
   profileManifests,
   projectDataFile,
+  templateContractFromMarker,
   type PortfolioProfileDraft,
 } from "./portfolio.js";
 export { runUserScan, scanRepositories, type ScanSummary } from "./scan.js";

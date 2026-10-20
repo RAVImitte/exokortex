@@ -71,6 +71,32 @@ describe("portfolio profile", () => {
     );
   });
 
+  it("prefers the projects path declared in exokortex.json", () => {
+    const draft = discoverPortfolioProfile({
+      paths: ["package.json", "exokortex.json", "src/data/projects.json"],
+      files: [
+        {
+          path: "exokortex.json",
+          content: JSON.stringify({
+            version: 1,
+            profile: "src/data/profile.json",
+            projects: "src/content/projects/{slug}.json",
+          }),
+        },
+        {
+          path: "package.json",
+          content: JSON.stringify({
+            dependencies: { vite: "8.0.0" },
+            scripts: { test: "vitest", build: "vite build" },
+          }),
+        },
+      ],
+    });
+    expect(draft.framework).toBe("VITE");
+    expect(draft.projectDataPath).toBe("src/content/projects/{slug}.json");
+    expect(draft.testCommand).toBe("vitest");
+  });
+
   it("picks a data path when the tree has no project file", () => {
     const draft = discoverPortfolioProfile({
       paths: ["pyproject.toml"],
@@ -199,5 +225,68 @@ describe("engineer edit", () => {
         currentContent: "[]",
       }),
     ).rejects.toThrow(/unchanged/);
+  });
+
+  it("writes a template project file without calling the model", async () => {
+    const change = await proposeEngineerEdit({
+      llm: llm([]),
+      repositoryName: "acme/site",
+      profile: {
+        ...profile,
+        framework: "VITE",
+        projectDataPath: "src/content/projects/ledger.json",
+        contract: "exokortex-v1",
+      },
+      project: {
+        ...project,
+        slug: "ledger",
+        name: "Ledger",
+        description: "A local record of approved changes.",
+        technologies: ["TypeScript", "SQLite"],
+        sourceUrl: "https://github.com/example/ledger",
+      },
+      currentContent: null,
+    });
+    expect(change.path).toBe("src/content/projects/ledger.json");
+    expect(JSON.parse(change.content)).toEqual({
+      slug: "ledger",
+      title: "Ledger",
+      summary: "A local record of approved changes.",
+      stack: ["TypeScript", "SQLite"],
+      sourceUrl: "https://github.com/example/ledger",
+    });
+  });
+
+  it("updates a template project file and keeps extra keys", async () => {
+    const change = await proposeEngineerEdit({
+      llm: llm([]),
+      repositoryName: "acme/site",
+      profile: {
+        ...profile,
+        projectDataPath: "src/content/projects/ledger.json",
+        contract: "exokortex-v1",
+      },
+      project: {
+        ...project,
+        slug: "ledger",
+        name: "Ledger",
+        description: "A rewritten summary.",
+        technologies: ["TypeScript"],
+        sourceUrl: "https://github.com/example/ledger",
+      },
+      currentContent: JSON.stringify({
+        slug: "ledger",
+        title: "Old",
+        summary: "Old summary.",
+        stack: ["Go"],
+        sourceUrl: "https://github.com/example/old",
+        note: "Kept by hand.",
+      }),
+    });
+    const body = JSON.parse(change.content) as { summary: string; note: string; stack: string[] };
+    expect(body.summary).toBe("A rewritten summary.");
+    expect(body.stack).toEqual(["TypeScript"]);
+    expect(body.note).toBe("Kept by hand.");
+    expect(change.commitMessage).toBe("Update Ledger in the portfolio");
   });
 });

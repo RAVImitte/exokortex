@@ -1,0 +1,7 @@
+{
+  "slug": "ledger",
+  "title": "Ledger",
+  "summary": "A local record of which repositories changed, and which of those changes were approved for the portfolio.",
+  "stack": ["TypeScript", "SQLite"],
+  "sourceUrl": "https://github.com/example/ledger"
+}

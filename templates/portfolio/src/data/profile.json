@@ -1,0 +1,8 @@
+{
+  "name": "Avery Chen",
+  "role": "Software engineer",
+  "bio": "I build small tools and keep a record of what they do.",
+  "location": "Sample city",
+  "email": "avery.chen@example.com",
+  "links": [{ "label": "GitHub", "href": "https://github.com/example" }]
+}
