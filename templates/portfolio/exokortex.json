@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "profile": "src/data/profile.json",
+  "projects": "src/content/projects/{slug}.json"
+}

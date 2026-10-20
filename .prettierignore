@@ -1,5 +1,6 @@
 dist
 node_modules
+.taste-skill
 .wrangler
 coverage
 pnpm-lock.yaml

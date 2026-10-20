@@ -30,6 +30,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Taste Skill direction sheets and inspection screenshots
+.taste-skill/
+
 # Logs
 *.log
 npm-debug.log*

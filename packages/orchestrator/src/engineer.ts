@@ -1,7 +1,7 @@
 import { engineerChange, portfolioEngineerPrompt, type EngineerChange } from "@exokortex/agents";
 import type { LLMProvider } from "@exokortex/llm";
 import { askAgent } from "./analyze.js";
-import { caseStudyContent, isCaseStudyPath } from "./portfolio.js";
+import { caseStudyContent, isCaseStudyPath, templateProjectContent } from "./portfolio.js";
 
 export interface EngineerProject {
   slug: string;
@@ -17,6 +17,7 @@ export interface EngineerProfile {
   projectDataPath: string;
   testCommand: string;
   buildCommand: string;
+  contract?: "exokortex-v1";
 }
 
 export function approvalFollowUp(input: {
@@ -48,6 +49,19 @@ export async function proposeEngineerEdit(input: {
   currentContent: string | null;
 }): Promise<EngineerChange> {
   const path = input.profile.projectDataPath;
+  if (input.profile.contract === "exokortex-v1" && isCaseStudyPath(path)) {
+    const title = input.project.name.trim() || input.project.slug;
+    const created = input.currentContent === null;
+    return {
+      path,
+      content: templateProjectContent(input.project, input.currentContent),
+      commitMessage: created ? `Add ${title} to the portfolio` : `Update ${title} in the portfolio`,
+      prTitle: created ? `Add ${title}` : `Update ${title}`,
+      prBody: created
+        ? `Adds the approved project ${title} as a portfolio file.`
+        : `Updates the approved project ${title} in its portfolio file.`,
+    };
+  }
   if (isCaseStudyPath(path) && input.currentContent === null) {
     const title = input.project.name.trim() || input.project.slug;
     return {

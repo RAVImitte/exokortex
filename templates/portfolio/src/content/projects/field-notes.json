@@ -1,0 +1,7 @@
+{
+  "slug": "field-notes",
+  "title": "Field notes",
+  "summary": "Plain sentences written after each scan, so a later approval does not depend on remembering the diff.",
+  "stack": ["TypeScript"],
+  "sourceUrl": "https://github.com/example/field-notes"
+}

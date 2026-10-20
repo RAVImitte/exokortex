@@ -1,0 +1,7 @@
+{
+  "slug": "gate",
+  "title": "Gate",
+  "summary": "The place a new project waits until a person says yes. Nothing is written to the portfolio before that.",
+  "stack": ["TypeScript", "React"],
+  "sourceUrl": "https://github.com/example/gate"
+}

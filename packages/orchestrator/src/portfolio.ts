@@ -17,7 +17,14 @@ const DATA_FILES = [
   "projects.md",
 ];
 
-const MANIFESTS = ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "requirements.txt"];
+const MANIFESTS = [
+  "package.json",
+  "pyproject.toml",
+  "Cargo.toml",
+  "go.mod",
+  "requirements.txt",
+  "exokortex.json",
+];
 
 const DEFAULT_DATA_PATH = "src/data/projects.json";
 
@@ -133,16 +140,82 @@ export function caseStudyContent(project: {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
+export function templateContractFromMarker(
+  content: string | null | undefined,
+): "exokortex-v1" | undefined {
+  const marker = readJson(content ?? undefined);
+  if (marker.version !== 1) return undefined;
+  const projects = stringValue(marker.projects);
+  if (!projects.includes("{slug}")) return undefined;
+  return "exokortex-v1";
+}
+
+export function templateProjectContent(
+  project: {
+    slug: string;
+    name: string;
+    description: string | null;
+    architecture?: string | null;
+    technologies: string[];
+    sourceUrl: string;
+  },
+  existing: string | null,
+): string {
+  let prior: Record<string, unknown> = {};
+  if (existing && existing.trim()) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(existing) as unknown;
+    } catch {
+      throw new Error("template project file is not JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("template project file is not a JSON object");
+    }
+    prior = parsed as Record<string, unknown>;
+  }
+  const slug = caseStudySlug(project.slug);
+  const title = project.name.trim() || slug;
+  const summary =
+    prose(project.description) || prose(project.architecture) || `${title} is a software project.`;
+  const incoming = project.technologies.map((item) => item.trim()).filter(Boolean);
+  const priorStack = Array.isArray(prior.stack)
+    ? prior.stack.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      )
+    : [];
+  const stack =
+    incoming.length > 0 ? incoming : priorStack.length > 0 ? priorStack : ["TypeScript"];
+  const incomingUrl = project.sourceUrl.trim();
+  const priorUrl = typeof prior.sourceUrl === "string" ? prior.sourceUrl : "";
+  const document = {
+    ...prior,
+    slug,
+    title,
+    summary,
+    stack,
+    sourceUrl: incomingUrl || priorUrl,
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
 export function discoverPortfolioProfile(input: {
   paths: string[];
   files: { path: string; content: string }[];
 }): PortfolioProfileDraft {
+  const marker = readJson(input.files.find((file) => file.path === "exokortex.json")?.content);
+  const markerProjects =
+    marker.version === 1 && stringValue(marker.projects).includes("{slug}")
+      ? stringValue(marker.projects)
+      : "";
   const projectDir = PROJECT_DIRS.find((dir) =>
     input.paths.some((path) => path.startsWith(`${dir}/`) && path.endsWith(".json")),
   );
-  const projectDataPath = projectDir
-    ? `${projectDir}/{slug}.json`
-    : (DATA_FILES.find((path) => input.paths.includes(path)) ?? DEFAULT_DATA_PATH);
+  const projectDataPath =
+    markerProjects ||
+    (projectDir
+      ? `${projectDir}/{slug}.json`
+      : (DATA_FILES.find((path) => input.paths.includes(path)) ?? DEFAULT_DATA_PATH));
   const packageJson = readJson(input.files.find((file) => file.path === "package.json")?.content);
   const scripts = record(packageJson.scripts);
   const dependencies = {
