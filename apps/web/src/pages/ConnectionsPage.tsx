@@ -5,7 +5,7 @@ import { api, messageOf } from "../api/client.js";
 import type { ConnectionRow } from "../api/types.js";
 import { AnimatedCell, AnimatedGrid } from "../ui/AnimatedList.js";
 import { Badge } from "../ui/Badge.js";
-import { Button, ButtonAnchor, IconButton } from "../ui/Button.js";
+import { Button, IconButton } from "../ui/Button.js";
 import { ConfirmDialog } from "../ui/ConfirmDialog.js";
 import { Field, SecretInput } from "../ui/Field.js";
 import { PageHeader } from "../ui/PageHeader.js";
@@ -117,6 +117,21 @@ function ProviderCard({
   const Icon = meta.icon;
   const connected = accounts.length > 0;
   const [open, setOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const toast = useToast();
+
+  async function startInstall() {
+    setLeaving(true);
+    try {
+      const body = await api<{ url: string }>(`/api/${provider}/install`, {
+        headers: { Accept: "application/json" },
+      });
+      window.location.assign(body.url);
+    } catch (err) {
+      toast.error(messageOf(err, "Could not start the connection"));
+      setLeaving(false);
+    }
+  }
 
   return (
     <div className="card provider-card">
@@ -171,13 +186,14 @@ function ProviderCard({
       </AnimatePresence>
       {provider === "github" || provider === "google" ? (
         <div>
-          <ButtonAnchor
-            href={`/api/${provider}/install`}
+          <Button
             variant={connected ? "secondary" : "primary"}
             icon={connected ? Plus : undefined}
+            loading={leaving}
+            onClick={() => void startInstall()}
           >
             {connected ? "Add another" : `Connect ${meta.label}`}
-          </ButtonAnchor>
+          </Button>
         </div>
       ) : (
         <>

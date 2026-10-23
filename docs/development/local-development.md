@@ -28,7 +28,16 @@ pnpm dev
 | Vite (`@exokortex/web`)        | http://localhost:5173 | Dashboard. Proxies `/api` to the Worker. |
 | Wrangler (`@exokortex/worker`) | http://127.0.0.1:8787 | API, local D1, queue, and cron.          |
 
-Open http://localhost:5173 and sign in with any email. Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`. Production sign-in is Clerk: set `AUTH_MODE=clerk`, `CLERK_SECRET_KEY`, `VITE_AUTH_MODE=clerk`, and `VITE_CLERK_PUBLISHABLE_KEY`.
+Open http://localhost:5173 and sign in with any email. Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
+
+Two local files, and they do not share values:
+
+| File | Who reads it | What goes there |
+| --- | --- | --- |
+| `apps/worker/.dev.vars` | Wrangler | Server config and secrets. Copy `apps/worker/.dev.vars.example`. |
+| `apps/web/.env.local` | Vite | `VITE_AUTH_MODE` and `VITE_CLERK_PUBLISHABLE_KEY` only. Copy `apps/web/.env.example`. |
+
+The root `.env.example` is a map. The app does not load it. To try Clerk locally, fill `CLERK_SECRET_KEY` in `.dev.vars`, copy the publishable key into `.env.local`, and set both `AUTH_MODE` and `VITE_AUTH_MODE` to `clerk`. Restart `pnpm dev`. Production uses the vars in `apps/worker/wrangler.jsonc` plus Worker secrets. See [deployment](deployment.md).
 
 `APP_BASE_URL` in `.dev.vars` should stay `http://localhost:5173` so the GitHub install callback returns to the Vite app. Leave `RESEND_API_KEY` empty locally unless you want approval and pull-request mail. `EMAIL_FROM` is the Resend sender, such as `ExoKortex <notifications@your-domain>`.
 

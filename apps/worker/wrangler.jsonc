@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "exokortex",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "9f82b50d-cec9-45e9-b647-e24ed0968c15",
       "migrations_dir": "../../packages/database/migrations",
     },
   ],
@@ -24,5 +24,13 @@
   },
   "triggers": {
     "crons": ["15 * * * *"],
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "AUTH_MODE": "clerk",
+    "APP_BASE_URL": "https://exokortex.exokortex.workers.dev",
+    "CLERK_PUBLISHABLE_KEY": "pk_test_bW9kZWwtaGFsaWJ1dC05MDQxLmNsZXJrLmFjY291bnRzLmRldiQ",
+    "GITHUB_APP_ID": "5395253",
+    "GITHUB_APP_SLUG": "exokortex-dev",
   },
 }

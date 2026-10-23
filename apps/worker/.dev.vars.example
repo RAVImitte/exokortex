@@ -1,15 +1,38 @@
+# Local Worker only. Gitignored once copied to .dev.vars.
+# pnpm setup copies this file and fills ENCRYPTION_KEY.
+# Restart `pnpm dev` after you edit apps/worker/.dev.vars.
+# The browser does not read this file. Public UI values go in apps/web/.env.local.
+
+# development while you run pnpm dev. Production is set in wrangler.jsonc, not here.
 ENVIRONMENT=development
+
+# dev shows the email form. clerk checks Clerk session tokens.
+# Switch this to clerk only after CLERK_SECRET_KEY is filled, and set the same mode in apps/web/.env.local.
 AUTH_MODE=dev
+
+# 32-byte key, base64. Created by pnpm setup. Signs encrypted tokens in the local database.
 ENCRYPTION_KEY=
+
+# Optional. The local session cookie uses ENCRYPTION_KEY when this is empty.
 DEV_SESSION_SECRET=
+
+# Where the browser runs. Vite proxies /api to the Worker.
 APP_BASE_URL=http://localhost:5173
+
+# Clerk. The secret never goes in the web app. Copy the publishable key into apps/web/.env.local.
 CLERK_SECRET_KEY=
 CLERK_PUBLISHABLE_KEY=
+
+# GitHub App. The private key is one line. \n stands for a line break.
 GITHUB_APP_ID=
 GITHUB_APP_SLUG=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_WEBHOOK_SECRET=
+
+# Google Colab. Leave both empty to keep that connection unavailable.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+
+# Mail. Leave both empty and ExoKortex skips email.
 RESEND_API_KEY=
 EMAIL_FROM=

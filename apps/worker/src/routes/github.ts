@@ -4,19 +4,23 @@ import { AppError } from "@exokortex/shared";
 import type { Hono } from "hono";
 import { storeDiscovered } from "../discover.js";
 import type { AppBindings } from "../http/types.js";
+import { pageOrigin } from "../auth.js";
 import { enqueueScan, githubProvider } from "../jobs.js";
 import { open, seal, sessionSecret } from "../session.js";
 
 export function registerGitHubRoutes(app: Hono<AppBindings>): void {
   app.get("/api/github/install", async (c) => {
-    if (!c.env.GITHUB_APP_SLUG)
+    const provider = githubProvider(c.env);
+    if (!c.env.GITHUB_APP_SLUG || !provider)
       throw new AppError("github_unconfigured", "GitHub App is not configured", 503);
+    const returnTo = pageOrigin(c.env, c.req.raw);
     const state = await seal(sessionSecret(c.env), {
       sub: c.get("userId"),
+      returnTo,
       exp: Math.floor(Date.now() / 1000) + 60 * 15,
     });
     const url = `https://github.com/apps/${c.env.GITHUB_APP_SLUG}/installations/new?state=${encodeURIComponent(state)}`;
-    return c.redirect(url);
+    return finishInstall(c, url, null);
   });
 
   app.get("/api/github/callback", async (c) => {
@@ -24,29 +28,10 @@ export function registerGitHubRoutes(app: Hono<AppBindings>): void {
     const state = c.req.query("state");
     if (!installationId || !state)
       throw new AppError("invalid_callback", "Missing installation id");
-    const userId = await readInstallState(c.env, state);
-    if (!userId) throw new AppError("invalid_callback", "Install link expired", 401);
-    const provider = githubProvider(c.env);
-    if (!provider) throw new AppError("github_unconfigured", "GitHub App is not configured", 503);
-
-    const db = new Database(c.env.DB);
-    const encrypted = await encryptString(
-      await importAesKey(c.env.ENCRYPTION_KEY),
-      JSON.stringify({ installationId }),
-    );
-    const connection = await db.connections.upsert({
-      userId,
-      provider: "github",
-      externalInstallationId: installationId,
-      encryptedCredentials: encrypted,
-    });
-    const stored = await storeDiscovered(db, userId, connection.id, provider, installationId);
-    await enqueueScan(c.env, db, {
-      userId,
-      installationId,
-      idempotencyKey: `scan:${userId}:bootstrap:${installationId}`,
-    });
-    return c.redirect(`${c.env.APP_BASE_URL ?? ""}/repositories?connected=${stored}`);
+    const install = await readInstallState(c.env, state);
+    if (!install) throw new AppError("invalid_callback", "Install link expired", 401);
+    const stored = await saveGitHubInstallation(c.env, install.userId, installationId);
+    return c.redirect(`${install.returnTo}/repositories?connected=${stored}`);
   });
 
   app.post("/api/github/webhook", async (c) => {
@@ -99,13 +84,67 @@ export function registerGitHubRoutes(app: Hono<AppBindings>): void {
   });
 }
 
+function finishInstall(c: { req: { header: (name: string) => string | undefined }; json: (body: unknown) => Response; redirect: (url: string) => Response }, target: string, stored: number | null): Response {
+  if (stored !== null) {
+    const url = `${target}/repositories?connected=${stored}`;
+    if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url });
+    return c.redirect(url);
+  }
+  if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url: target });
+  return c.redirect(target);
+}
+
+async function saveGitHubInstallation(
+  env: AppBindings["Bindings"],
+  userId: string,
+  installationId: string,
+): Promise<number> {
+  const provider = githubProvider(env);
+  if (!provider) throw new AppError("github_unconfigured", "GitHub App is not configured", 503);
+  const db = new Database(env.DB);
+  const encrypted = await encryptString(
+    await importAesKey(env.ENCRYPTION_KEY),
+    JSON.stringify({ installationId }),
+  );
+  const connection = await db.connections.upsert({
+    userId,
+    provider: "github",
+    externalInstallationId: installationId,
+    encryptedCredentials: encrypted,
+  });
+  const stored = await storeDiscovered(db, userId, connection.id, provider, installationId);
+  await enqueueScan(env, db, {
+    userId,
+    installationId,
+    idempotencyKey: `scan:${userId}:bootstrap:${installationId}`,
+  });
+  return stored;
+}
+
 async function readInstallState(
   env: AppBindings["Bindings"],
   state: string,
-): Promise<string | null> {
-  const payload = await open<{ sub?: string; exp?: number }>(sessionSecret(env), state);
+): Promise<{ userId: string; returnTo: string } | null> {
+  const payload = await open<{ sub?: string; exp?: number; returnTo?: string }>(
+    sessionSecret(env),
+    state,
+  );
   if (!payload?.sub || !payload.exp || payload.exp * 1000 < Date.now()) return null;
-  return payload.sub;
+  return { userId: payload.sub, returnTo: safeReturn(payload.returnTo, env.APP_BASE_URL) };
+}
+
+function safeReturn(returnTo: string | undefined, appBaseUrl: string | undefined): string {
+  const fallback = appBaseUrl ?? "";
+  if (!returnTo) return fallback;
+  try {
+    const url = new URL(returnTo);
+    const local =
+      url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+    if (local || (appBaseUrl && url.origin === new URL(appBaseUrl).origin)) return url.origin;
+  } catch {
+    return fallback;
+  }
+  return fallback;
 }
 
 async function enqueuePush(

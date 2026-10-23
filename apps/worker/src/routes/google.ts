@@ -27,7 +27,9 @@ export function registerGoogleRoutes(app: Hono<AppBindings>): void {
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
     url.searchParams.set("state", state);
-    return c.redirect(url.toString());
+    const target = url.toString();
+    if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url: target });
+    return c.redirect(target);
   });
 
   app.get("/api/google/callback", async (c) => {
