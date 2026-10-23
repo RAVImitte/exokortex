@@ -8,10 +8,17 @@ export function bytesToBase64(bytes: Uint8Array): string {
 }
 
 export function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(value);
+  const cleaned = value.replace(/\s+/g, "");
+  const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
+  const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+export function pemBlock(value: string): string {
+  const text = value.replace(/\\n/g, "\n");
+  return text.match(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/)?.[0] ?? text;
 }
 
 export function bytesToHex(bytes: Uint8Array): string {

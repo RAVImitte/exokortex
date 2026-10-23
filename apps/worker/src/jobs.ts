@@ -23,7 +23,7 @@ import {
   type AnalysisChange,
   type AnalysisHooks,
 } from "@exokortex/orchestrator";
-import { decryptString, importAesKey } from "@exokortex/security";
+import { decryptString, importAesKey, pemBlock } from "@exokortex/security";
 import { log, nowIso } from "@exokortex/shared";
 import type { SourceProvider } from "@exokortex/source-providers";
 import type { Env, JobMessage } from "./env.js";
@@ -45,7 +45,7 @@ export function githubProvider(env: Env): GitHubProvider | null {
   if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) return null;
   return new GitHubProvider({
     appId: env.GITHUB_APP_ID,
-    privateKeyPem: env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    privateKeyPem: pemBlock(env.GITHUB_APP_PRIVATE_KEY),
   });
 }
 
