@@ -7,6 +7,7 @@ import { AnimatedItem, AnimatedList } from "../ui/AnimatedList.js";
 import { Button, ButtonLink, IconButton } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { Input } from "../ui/Field.js";
+import { BuildPortfolioButton } from "../ui/BuildPortfolioButton.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { Segmented, type SegmentOption } from "../ui/Segmented.js";
 import { SkeletonCards } from "../ui/Skeleton.js";
@@ -87,15 +88,18 @@ export function RepositoriesPage() {
         title="Repositories"
         description="Choose what ExoKortex watches. One GitHub repository is your portfolio."
         actions={
-          <Button
-            variant="primary"
-            icon={RefreshCw}
-            loading={scanning}
-            disabled={!repos || repos.length === 0}
-            onClick={() => void scan()}
-          >
-            Scan now
-          </Button>
+          <div className="cluster">
+            {repos && repos.length > 0 ? <BuildPortfolioButton /> : null}
+            <Button
+              variant="primary"
+              icon={RefreshCw}
+              loading={scanning}
+              disabled={!repos || repos.length === 0}
+              onClick={() => void scan()}
+            >
+              Scan now
+            </Button>
+          </div>
         }
       />
       {repos === null ? (

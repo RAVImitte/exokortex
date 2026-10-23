@@ -6,6 +6,7 @@ import { AnimatedItem, AnimatedList } from "../ui/AnimatedList.js";
 import { Button } from "../ui/Button.js";
 import { ChangeCard, ChangeDot } from "../ui/ChangeCard.js";
 import { EmptyState } from "../ui/EmptyState.js";
+import { BuildPortfolioButton } from "../ui/BuildPortfolioButton.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { Segmented } from "../ui/Segmented.js";
 import { SkeletonCards } from "../ui/Skeleton.js";
@@ -68,9 +69,10 @@ export function ActivityPage() {
         <EmptyState
           icon={Activity}
           title={changes.length === 0 ? "No changes yet" : "Nothing here"}
+          action={changes.length === 0 ? <BuildPortfolioButton variant="primary" /> : undefined}
         >
           {changes.length === 0
-            ? "The first scan only records a baseline. A later scan that sees a new revision adds a change here."
+            ? "The first scan only records a baseline. Extract the connected repositories into the example portfolio template. If none is marked as the portfolio, ExoKortex creates a new repository."
             : "No changes match this filter."}
         </EmptyState>
       ) : (

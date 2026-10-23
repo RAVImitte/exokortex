@@ -10,6 +10,7 @@ import { registerGoogleRoutes } from "./routes/google.js";
 import { registerHuggingFaceRoutes } from "./routes/huggingface.js";
 import { registerKaggleRoutes } from "./routes/kaggle.js";
 import { registerLlmRoutes } from "./routes/llm.js";
+import { registerPortfolioRoutes } from "./routes/portfolio.js";
 import { registerRepositoryRoutes } from "./routes/repositories.js";
 import { registerSessionRoutes } from "./routes/session.js";
 
@@ -31,6 +32,7 @@ export function createApp(): Hono<AppBindings> {
   registerHuggingFaceRoutes(app);
   registerKaggleRoutes(app);
   registerRepositoryRoutes(app);
+  registerPortfolioRoutes(app);
   registerApprovalRoutes(app);
   registerLlmRoutes(app);
   return app;

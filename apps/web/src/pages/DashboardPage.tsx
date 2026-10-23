@@ -20,6 +20,7 @@ import { Badge } from "../ui/Badge.js";
 import { ButtonLink } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { ChangeCard, ChangeDot } from "../ui/ChangeCard.js";
+import { BuildPortfolioButton } from "../ui/BuildPortfolioButton.js";
 import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { Skeleton } from "../ui/Skeleton.js";
@@ -104,9 +105,14 @@ export function DashboardPage() {
         ) : null}
       </div>
       {recent.length === 0 ? (
-        <EmptyState icon={Activity} title="No changes yet">
-          The first scan records a baseline. Changes appear here after a later scan sees a new
-          revision.
+        <EmptyState
+          icon={Activity}
+          title="No changes yet"
+          action={<BuildPortfolioButton variant="primary" />}
+        >
+          The first scan records a baseline. Extract the connected repositories into the example
+          portfolio template. If none is marked as the portfolio, ExoKortex creates a new
+          repository.
         </EmptyState>
       ) : (
         <AnimatedList className="timeline">

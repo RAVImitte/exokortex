@@ -32,4 +32,5 @@ export {
   templateContractFromMarker,
   type PortfolioProfileDraft,
 } from "./portfolio.js";
+export { portfolioSeedFiles, projectFromSource } from "./portfolio-seed.js";
 export { runUserScan, scanRepositories, type ScanSummary } from "./scan.js";
