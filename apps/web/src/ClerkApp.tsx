@@ -9,7 +9,6 @@ import {
 import { useEffect, useState } from "react";
 import { api, setSessionToken } from "./api/client.js";
 import type { Me } from "./api/types.js";
-import { Brand } from "./layout/Brand.js";
 import { Shell } from "./layout/Shell.js";
 import { AuthLayout } from "./pages/LoginPage.js";
 import { AppRoutes, Loading } from "./routes.js";
@@ -27,14 +26,9 @@ export default function ClerkApp() {
   return (
     <ClerkProvider publishableKey={clerkKey}>
       <SignedOut>
-        <div className="auth">
-          <div className="auth-glow auth-glow-1" />
-          <div className="auth-glow auth-glow-2" />
-          <div className="auth-clerk">
-            <Brand />
-            <SignIn routing="hash" />
-          </div>
-        </div>
+        <AuthLayout>
+          <SignIn routing="hash" />
+        </AuthLayout>
       </SignedOut>
       <SignedIn>
         <ClerkSession />

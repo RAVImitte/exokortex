@@ -1,34 +1,46 @@
 import { ArrowRight } from "lucide-react";
-import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api, messageOf } from "../api/client.js";
 import type { Me } from "../api/types.js";
 import { Brand } from "../layout/Brand.js";
 import { Button } from "../ui/Button.js";
 import { Field, Input } from "../ui/Field.js";
+import { Sculpture } from "../ui/Sculpture.js";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="auth">
-      <motion.div
-        className="auth-glow auth-glow-1"
-        animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="auth-glow auth-glow-2"
-        animate={{ x: [0, -30, 0], y: [0, -40, 0] }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="card auth-card"
-        initial={{ opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Brand />
-        {children}
-      </motion.div>
+    <div className="auth auth-modern">
+      <div className="auth-showcase">
+        <Link to="/" aria-label="Back to ExoKortex website">
+          <Brand />
+        </Link>
+        <div className="auth-message">
+          <p>For the work that keeps moving.</p>
+          <h2>
+            Make room
+            <br />
+            for your
+            <br />
+            next chapter.
+          </h2>
+          <Sculpture />
+        </div>
+        <div className="auth-showcase-footer">
+          <span>Your work. Thoughtfully collected.</span>
+          <span>ExoKortex</span>
+        </div>
+      </div>
+      <div className="auth-form-panel">
+        <Link className="auth-back" to="/">
+          Back to website
+        </Link>
+        <div className="auth-card">
+          {children}
+          <p className="auth-assurance">Your key. Your approval. Always your work.</p>
+        </div>
+        <span className="auth-form-footer">A living portfolio starts here.</span>
+      </div>
     </div>
   );
 }
@@ -69,7 +81,9 @@ export function LoginPage({ onDone }: { onDone: (me: Me) => void }) {
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               placeholder="you@example.com"
-              autoFocus
+              name="email"
+              autoComplete="email"
+              spellCheck={false}
               required
             />
           )}

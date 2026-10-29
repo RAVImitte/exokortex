@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowUpRight,
   Check,
   ChevronRight,
   Clock,
@@ -25,6 +26,7 @@ import { EmptyState } from "../ui/EmptyState.js";
 import { PageHeader } from "../ui/PageHeader.js";
 import { Skeleton } from "../ui/Skeleton.js";
 import { Stat } from "../ui/Stat.js";
+import { Sculpture } from "../ui/Sculpture.js";
 
 interface SetupState {
   connections: ConnectionRow[];
@@ -52,8 +54,8 @@ export function DashboardPage() {
   return (
     <section>
       <PageHeader
-        title="Home"
-        description="What changed in your work, and what is waiting on you."
+        title="Overview"
+        description="A little perspective on everything you are building."
         actions={
           data.pendingApprovals > 0 ? (
             <ButtonLink to="/approvals" variant="primary" icon={Inbox}>
@@ -63,6 +65,31 @@ export function DashboardPage() {
           ) : null
         }
       />
+      <div className="overview-feature">
+        <div>
+          <span className="overview-label">
+            <span />
+            Your portfolio workspace
+          </span>
+          <h2>
+            Your progress.
+            <br />
+            In perspective.
+          </h2>
+          <p>
+            Keep your portfolio in step with the work you ship.
+            <br />
+            You build. You review. You stay in control.
+          </p>
+          <Link to={data.pendingApprovals > 0 ? "/approvals" : "/repositories"}>
+            {data.pendingApprovals > 0
+              ? `Review ${data.pendingApprovals} pending ${data.pendingApprovals === 1 ? "update" : "updates"}`
+              : "Explore your repositories"}
+            <ArrowUpRight size={18} aria-hidden="true" />
+          </Link>
+        </div>
+        <Sculpture className="sculpture-dashboard" />
+      </div>
       <SetupChecklist data={data} setup={setup} />
       <div className="stats">
         <Stat

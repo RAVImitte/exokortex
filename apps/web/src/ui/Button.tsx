@@ -23,7 +23,9 @@ function content(icon: LucideIcon | undefined, size: Size, loading: boolean, chi
   const Icon = loading ? LoaderCircle : icon;
   return (
     <>
-      {Icon ? <Icon size={iconSize} className={loading ? "spinner" : undefined} /> : null}
+      {Icon ? (
+        <Icon size={iconSize} aria-hidden="true" className={loading ? "spinner" : undefined} />
+      ) : null}
       {children}
     </>
   );
@@ -74,7 +76,7 @@ export function IconButton({
       {...rest}
       className={classes({ variant, size }, `btn-icon ${className ?? ""}`)}
     >
-      <Icon size={size === "sm" ? 15 : 18} />
+      <Icon size={size === "sm" ? 15 : 18} aria-hidden="true" />
     </button>
   );
 }

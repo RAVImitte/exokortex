@@ -49,9 +49,13 @@ export function ProjectsPage() {
         </EmptyState>
       ) : (
         <AnimatedGrid className="project-grid">
-          {projects.map((project) => (
+          {projects.map((project, index) => (
             <AnimatedCell key={project.id}>
               <article className="card card-interactive project-card">
+                <div className={`project-cover project-cover-${index % 3}`} aria-hidden="true">
+                  <span>{project.name.slice(0, 2)}</span>
+                  <FolderKanban size={30} strokeWidth={1} />
+                </div>
                 <div className="spread">
                   <h3>{project.name}</h3>
                   <Badge>{project.status}</Badge>

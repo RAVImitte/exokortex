@@ -1,33 +1,14 @@
-import { LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { ArrowUpRight, LogOut } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { Me } from "../api/types.js";
 import { useDashboard } from "../hooks/useDashboard.js";
-import { useTheme, type ThemeChoice } from "../theme.js";
 import { IconButton } from "../ui/Button.js";
 import { Brand } from "./Brand.js";
 import { navSections } from "./nav.js";
-
-const nextTheme: Record<ThemeChoice, ThemeChoice> = {
-  system: "light",
-  light: "dark",
-  dark: "system",
-};
-
-const themeIcon = { system: Monitor, light: Sun, dark: Moon };
-
-export function ThemeToggle() {
-  const { choice, setChoice } = useTheme();
-  return (
-    <IconButton
-      icon={themeIcon[choice]}
-      label={`Theme: ${choice}. Switch to ${nextTheme[choice]}`}
-      size="sm"
-      onClick={() => setChoice(nextTheme[choice])}
-    />
-  );
-}
+import { ThemeToggle } from "./ThemeToggle.js";
+export { ThemeToggle } from "./ThemeToggle.js";
 
 export function Sidebar({
   me,
@@ -87,6 +68,14 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+      <Link className="sidebar-studio" to="/projects">
+        <span className="sidebar-studio-mark">↗</span>
+        <strong>A living body of work.</strong>
+        <p>Your progress, thoughtfully collected.</p>
+        <span>
+          View your projects <ArrowUpRight size={14} aria-hidden="true" />
+        </span>
+      </Link>
       <div className="sidebar-footer">
         <div className="account">
           {account ?? <span className="avatar">{me?.email.slice(0, 1) ?? "?"}</span>}
