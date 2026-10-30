@@ -18,16 +18,29 @@ export function registerLlmRoutes(app: Hono<AppBindings>): void {
       model?: string;
       apiKey?: string;
     }>();
-    if (!body.provider || !body.baseUrl || !body.model || !body.apiKey) {
-      throw new AppError("invalid_config", "Provider, base URL, model, and API key are required");
+    if (
+      typeof body.provider !== "string" ||
+      !body.provider.trim() ||
+      typeof body.baseUrl !== "string" ||
+      typeof body.model !== "string" ||
+      !body.model.trim() ||
+      (body.apiKey !== undefined && typeof body.apiKey !== "string")
+    ) {
+      throw new AppError("invalid_config", "Provider, base URL, and model are required");
     }
     assertHttpUrl(body.baseUrl);
-    await new Database(c.env.DB).llm.save({
+    const db = new Database(c.env.DB);
+    const encryptedApiKey = body.apiKey?.trim()
+      ? await encryptString(await importAesKey(c.env.ENCRYPTION_KEY), body.apiKey.trim())
+      : await db.llm.ciphertext(c.get("userId"));
+    if (!encryptedApiKey)
+      throw new AppError("invalid_config", "An API key is required for the first save");
+    await db.llm.save({
       userId: c.get("userId"),
       provider: body.provider,
       baseUrl: body.baseUrl,
       model: body.model,
-      encryptedApiKey: await encryptString(await importAesKey(c.env.ENCRYPTION_KEY), body.apiKey),
+      encryptedApiKey,
       keyVersion: 1,
     });
     return c.json({ ok: true });

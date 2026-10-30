@@ -29,6 +29,28 @@ describe("GitHub app jwt", () => {
 });
 
 describe("GitHubProvider", () => {
+  it("reads from the selected branch and honors explicit revisions", async () => {
+    const paths: string[] = [];
+    const provider = new GitHubProvider({
+      appId: "1",
+      privateKeyPem: testKey(),
+      fetch: async (input) => {
+        paths.push(String(input));
+        return String(input).includes("/access_tokens")
+          ? json({ token: "test" })
+          : json({ content: "e30=", encoding: "base64" });
+      },
+    });
+    const repository = { externalId: "7", name: "acme/site", defaultBranch: "release/v2" };
+    await provider.getFile({ installationId: "99" }, repository, "project data.json");
+    await provider.getFile({ installationId: "99" }, repository, "projects.json", "commit123");
+    expect(paths).toContain(
+      "https://api.github.com/repos/acme/site/contents/project%20data.json?ref=release%2Fv2",
+    );
+    expect(paths).toContain(
+      "https://api.github.com/repos/acme/site/contents/projects.json?ref=commit123",
+    );
+  });
   it("discovers repositories and reads the latest revision from fixtures", async () => {
     const pem = testKey();
     const fetchMock: typeof fetch = async (input, init) => {

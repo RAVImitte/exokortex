@@ -44,7 +44,7 @@ export function registerHuggingFaceRoutes(app: Hono<AppBindings>): void {
       userId,
       installationId: username,
       provider: "huggingface",
-      idempotencyKey: `scan:${userId}:bootstrap:${username}`,
+      idempotencyKey: `scan:${userId}:bootstrap:huggingface:${username}`,
     });
     return c.json({ username, repositories: stored });
   });

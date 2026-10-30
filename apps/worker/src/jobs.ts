@@ -1,5 +1,5 @@
-import { scoutReport, type ScoutReport } from "@exokortex/agents";
-import { limits, type WorkflowState } from "@exokortex/core";
+import { curatorClassification, scoutReport, type ScoutReport } from "@exokortex/agents";
+import { addFrequency, limits, type WorkflowState } from "@exokortex/core";
 import { Database } from "@exokortex/database";
 import { explainGitHubWriteError, GitHubProvider } from "@exokortex/github";
 import { GoogleProvider, googleAccessToken } from "@exokortex/google";
@@ -9,7 +9,7 @@ import { engineerKey, maxAttemptsFor, nextRunIso, shouldRetry } from "@exokortex
 import { OpenAICompatibleProvider, type LLMProvider } from "@exokortex/llm";
 import {
   analyzeChange,
-  analystContextFiles,
+  analystPaths,
   approvalAction,
   approvalWaitingNotice,
   portfolioTarget,
@@ -28,6 +28,7 @@ import { log, nowIso } from "@exokortex/shared";
 import type { SourceProvider } from "@exokortex/source-providers";
 import type { Env, JobMessage } from "./env.js";
 import { runEngineerJob } from "./engineer.js";
+import { storeDiscovered } from "./discover.js";
 import { approvalsUrl, notify } from "./mail.js";
 
 export function isScanProvider(
@@ -65,6 +66,7 @@ export async function enqueueScan(
   const { job, created } = await db.jobs.insert({
     userId: input.userId,
     type: "scan",
+    workflowState: "SCAN_PENDING",
     payload: {
       installationId: input.installationId,
       provider: input.provider ?? "github",
@@ -76,8 +78,12 @@ export async function enqueueScan(
     now,
   });
   if (!created) return { created: false, jobId: job.id };
-  const workflow = await db.workflows.create(input.userId, "SCAN_PENDING", now);
-  await db.jobs.attachWorkflow(job.id, workflow.id);
+  const user = await db.users.find(input.userId);
+  if (user && !user.nextScanAt) {
+    await db.users.updateSettings(user.id, {
+      nextScanAt: addFrequency(new Date(now), user.scanFrequency).toISOString(),
+    });
+  }
   await env.JOBS.send({ jobId: job.id } satisfies JobMessage);
   return { created: true, jobId: job.id };
 }
@@ -91,14 +97,13 @@ export async function enqueueCurate(
   const { job, created } = await db.jobs.insert({
     userId: input.userId,
     type: "curate",
-    payload: { changeEventId: input.changeId },
+    workflowState: "CURATING",
+    payload: { changeEventId: input.changeId, refresh: true },
     idempotencyKey: input.idempotencyKey,
     maxAttempts: maxAttemptsFor("scan"),
     now,
   });
   if (!created) return { created: false, jobId: job.id };
-  const workflow = await db.workflows.create(input.userId, "CURATING", now);
-  await db.jobs.attachWorkflow(job.id, workflow.id);
   await env.JOBS.send({ jobId: job.id } satisfies JobMessage);
   return { created: true, jobId: job.id };
 }
@@ -166,7 +171,10 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       return;
     }
     if (claimed.type === "curate") {
-      const payload = JSON.parse(claimed.payloadJson) as { changeEventId?: string };
+      const payload = JSON.parse(claimed.payloadJson) as {
+        changeEventId?: string;
+        refresh?: boolean;
+      };
       if (!payload.changeEventId) throw new Error("curate job is missing a change id");
       const llm = await userLlm(env, db, claimed.userId);
       await curateReady(
@@ -178,6 +186,8 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         undefined,
         now,
         payload.changeEventId,
+        undefined,
+        payload.refresh === true && claimed.attempts === 1,
       );
       const pending = claimed.workflowId
         ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
@@ -209,6 +219,15 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
     const providerName = isScanProvider(payload.provider) ? payload.provider : "github";
     const source = await scanSource(env, db, claimed.userId, providerName, payload.installationId);
     const provider = source.provider;
+    if (!payload.repositoryId) {
+      await storeDiscovered(
+        db,
+        claimed.userId,
+        source.connectionId,
+        provider,
+        payload.installationId,
+      );
+    }
     if (claimed.workflowId) {
       try {
         await db.workflows.transition(claimed.userId, claimed.workflowId, "SCANNING", now);
@@ -226,10 +245,18 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       repositoryId: payload.repositoryId,
       now,
     });
-    const open = await db.changes.listOpen(claimed.userId, payload.repositoryId);
+    const open = await db.changes.listOpen(
+      claimed.userId,
+      payload.repositoryId,
+      source.connectionId,
+    );
     const waiting =
       open.length === 0
-        ? await db.changes.listReadyForCurator(claimed.userId, payload.repositoryId)
+        ? await db.changes.listReadyForCurator(
+            claimed.userId,
+            payload.repositoryId,
+            source.connectionId,
+          )
         : [];
     if (open.length === 0 && waiting.length === 0) {
       await move(db, claimed.userId, claimed.workflowId, "COMPLETED", now);
@@ -248,6 +275,8 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         claimed.workflowId,
         payload.repositoryId,
         now,
+        undefined,
+        source.connectionId,
       );
       const pending = claimed.workflowId
         ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
@@ -274,6 +303,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       return [
         {
           id: change.id,
+          repositoryId: repo.id,
           repositoryName: repo.name,
           defaultBranch: repo.defaultBranch ?? "main",
           fromRevision: change.fromRevision,
@@ -289,7 +319,7 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       agent: "scout",
       hooks,
       run: async (change) => {
-        const repo = repos.find((item) => item.name === change.repositoryName);
+        const repo = repos.find((item) => item.id === change.repositoryId);
         if (!repo) throw new Error(`repository missing for ${change.repositoryName}`);
         const files = await provider.getChanges(
           { installationId: payload.installationId! },
@@ -323,10 +353,16 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
       hooks,
       run: async (change) => {
         const scout = await scoutFor(db, claimed.userId, change.id, scouted);
-        const repo = repos.find((item) => item.name === change.repositoryName);
+        const repo = repos.find((item) => item.id === change.repositoryId);
         if (!repo) throw new Error(`repository missing for ${change.repositoryName}`);
+        const changed = await provider.getChanges(
+          { installationId: payload.installationId! },
+          { externalId: repo.externalId, name: repo.name, defaultBranch: change.defaultBranch },
+          change.fromRevision,
+          change.toRevision,
+        );
         const files = [];
-        for (const path of analystContextFiles) {
+        for (const path of analystPaths(changed)) {
           const file = await readFile(
             provider,
             payload.installationId!,
@@ -349,7 +385,17 @@ export async function handleJob(env: Env, jobId: string): Promise<void> {
         });
       },
     });
-    await curateReady(env, db, llm, claimed.userId, claimed.workflowId, payload.repositoryId, now);
+    await curateReady(
+      env,
+      db,
+      llm,
+      claimed.userId,
+      claimed.workflowId,
+      payload.repositoryId,
+      now,
+      undefined,
+      source.connectionId,
+    );
     const pending = claimed.workflowId
       ? await db.approvals.listPending(claimed.userId, claimed.workflowId)
       : [];
@@ -403,10 +449,12 @@ async function curateReady(
   repositoryId: string | undefined,
   now: string,
   onlyChangeId?: string,
+  connectionId?: string,
+  refresh = false,
 ): Promise<void> {
   const ready = onlyChangeId
     ? [await oneChange(db, userId, onlyChangeId)]
-    : await db.changes.listReadyForCurator(userId, repositoryId);
+    : await db.changes.listReadyForCurator(userId, repositoryId, connectionId);
   if (ready.length === 0) return;
   await move(db, userId, workflowId, "CURATING", now);
   const projects = await db.projects.list(userId);
@@ -416,30 +464,34 @@ async function curateReady(
     if (!analystRaw) continue;
     const analyst = parseAnalystReport(analystRaw);
     const repo = repos.find((item) => item.id === change.repositoryId);
-    const report = await curateWithFollowups({
-      llm,
-      change: {
-        id: change.id,
-        repositoryName: repo?.name ?? "repository",
-        defaultBranch: repo?.defaultBranch ?? "main",
-        fromRevision: change.fromRevision,
-        toRevision: change.toRevision,
-      },
-      analyst,
-      projects: projects.map((project) => ({
-        slug: project.slug,
-        name: project.name,
-        description: project.description,
-      })),
-      maxFollowups: limits.maxCuratorFollowups,
-    });
-    await db.agents.complete({
-      userId,
-      changeEventId: change.id,
-      agentName: "curator",
-      outputJson: JSON.stringify(report),
-      now,
-    });
+    const saved = refresh ? null : await db.agents.latestOutput(userId, change.id, "curator");
+    const report = saved
+      ? curatorClassification.parse(JSON.parse(saved))
+      : await curateWithFollowups({
+          llm,
+          change: {
+            id: change.id,
+            repositoryName: repo?.name ?? "repository",
+            defaultBranch: repo?.defaultBranch ?? "main",
+            fromRevision: change.fromRevision,
+            toRevision: change.toRevision,
+          },
+          analyst,
+          projects: projects.map((project) => ({
+            slug: project.slug,
+            name: project.name,
+            description: project.description,
+          })),
+          maxFollowups: limits.maxCuratorFollowups,
+        });
+    if (!saved)
+      await db.agents.complete({
+        userId,
+        changeEventId: change.id,
+        agentName: "curator",
+        outputJson: JSON.stringify(report),
+        now,
+      });
     const action = approvalAction(report.classification);
     if (!action || (await db.approvals.findByChange(userId, change.id))) continue;
     const target = portfolioTarget({
@@ -499,6 +551,7 @@ async function move(
 function agentHooks(db: Database, userId: string): AnalysisHooks {
   return {
     alreadyRan: (changeId, agent) => db.agents.hasCompleted(userId, changeId, agent),
+    loadRun: (changeId, agent) => db.agents.latestOutput(userId, changeId, agent),
     saveRun: (changeId, agent, outputJson) =>
       db.agents.complete({ userId, changeEventId: changeId, agentName: agent, outputJson }),
     markChange: () => Promise.resolve(),

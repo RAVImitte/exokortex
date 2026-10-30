@@ -1,6 +1,7 @@
 dist
 node_modules
 .taste-skill
+.ui-experiment
 .wrangler
 coverage
 pnpm-lock.yaml

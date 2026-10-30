@@ -1,6 +1,11 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "exokortex",
+  "account_id": "a472ca7d0fb620fb1782835449aea5f3",
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+  },
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],

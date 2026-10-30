@@ -118,10 +118,16 @@ export class TrackedRepositoryRepository {
     return row ? toRepository(row) : null;
   }
 
-  async findByExternalId(externalId: string): Promise<RepositoryRecord | null> {
+  async findByExternalId(
+    userId: string,
+    connectionId: string,
+    externalId: string,
+  ): Promise<RepositoryRecord | null> {
     const row = await this.db
-      .prepare("SELECT * FROM repositories WHERE external_id = ? LIMIT 1")
-      .bind(externalId)
+      .prepare(
+        "SELECT * FROM repositories WHERE user_id = ? AND connection_id = ? AND external_id = ? LIMIT 1",
+      )
+      .bind(userId, connectionId, externalId)
       .first<RepositoryRow>();
     return row ? toRepository(row) : null;
   }

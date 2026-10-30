@@ -38,19 +38,33 @@ function pkcs8Bytes(privateKeyPem: string): BufferSource {
   return privateKeyPem.includes("BEGIN RSA PRIVATE KEY") ? pkcs1ToPkcs8(der) : der;
 }
 
-function pkcs1ToPkcs8(pkcs1: Uint8Array): Uint8Array {
+function pkcs1ToPkcs8(pkcs1: Uint8Array): Uint8Array<ArrayBuffer> {
   const version = Uint8Array.of(0x02, 0x01, 0x00);
   const algorithm = Uint8Array.of(
-    0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x2a,
+    0x86,
+    0x48,
+    0x86,
+    0xf7,
+    0x0d,
+    0x01,
+    0x01,
+    0x01,
+    0x05,
+    0x00,
   );
   return sequence(concat([version, algorithm, tagged(0x04, pkcs1)]));
 }
 
-function sequence(content: Uint8Array): Uint8Array {
+function sequence(content: Uint8Array): Uint8Array<ArrayBuffer> {
   return tagged(0x30, content);
 }
 
-function tagged(tag: number, content: Uint8Array): Uint8Array {
+function tagged(tag: number, content: Uint8Array): Uint8Array<ArrayBuffer> {
   const length = lengthBytes(content.length);
   const out = new Uint8Array(1 + length.length + content.length);
   out[0] = tag;

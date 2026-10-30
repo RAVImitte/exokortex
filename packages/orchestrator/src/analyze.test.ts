@@ -2,6 +2,7 @@ import type { LLMProvider } from "@exokortex/llm";
 import { describe, expect, it } from "vitest";
 import {
   analyzeChange,
+  analystPaths,
   runAgentPass,
   scoutChange,
   shouldAnalyzeChange,
@@ -27,6 +28,78 @@ function llm(replies: string[]): LLMProvider {
 }
 
 describe("scout and analyst", () => {
+  it("replays failed status updates from saved output without another model call", async () => {
+    let saved: string | null = null;
+    let modelCalls = 0;
+    let effectCalls = 0;
+    const pass = {
+      changes: [change],
+      agent: "analyst" as const,
+      hooks: {
+        alreadyRan: async () => saved !== null,
+        loadRun: async () => saved,
+        saveRun: async (_id: string, _agent: string, output: string) => {
+          saved = output;
+        },
+        markChange: async () => undefined,
+      },
+      run: async () => {
+        modelCalls++;
+        return { purpose: "API" };
+      },
+      after: async (_change: AnalysisChange, report: { purpose: string }) => {
+        expect(report.purpose).toBe("API");
+        if (++effectCalls === 1) throw new Error("D1 unavailable");
+      },
+    };
+    await expect(runAgentPass(pass)).rejects.toThrow("D1 unavailable");
+    await runAgentPass(pass);
+    expect(modelCalls).toBe(1);
+    expect(effectCalls).toBe(2);
+  });
+
+  it("includes notebook and script source in analyst context", () => {
+    const paths = analystPaths([
+      { path: "train.ipynb", status: "modified" },
+      { path: "train.py", status: "modified" },
+      { path: "deleted.ipynb", status: "removed" },
+    ]);
+    expect(paths).toContain("train.ipynb");
+    expect(paths).toContain("train.py");
+    expect(paths).not.toContain("deleted.ipynb");
+  });
+  it("sends notebook cell source without execution output to Analyst", async () => {
+    let prompt = "";
+    await analyzeChange({
+      change,
+      scout: { meaningful: true, significance: "high", summary: "Notebook change", evidence: [] },
+      files: [
+        {
+          path: "train.ipynb",
+          content: JSON.stringify({
+            cells: [{ source: ["train_model()"], outputs: [{ text: "LARGE_EXECUTION_OUTPUT" }] }],
+          }),
+        },
+      ],
+      llm: {
+        generate: async (request) => {
+          prompt = request.user;
+          return {
+            text: JSON.stringify({
+              purpose: "Training",
+              architecture: "Notebook",
+              technologies: [],
+              relationships: [],
+              evidence: [],
+            }),
+            model: "test",
+          };
+        },
+      },
+    });
+    expect(prompt).toContain("train_model()");
+    expect(prompt).not.toContain("LARGE_EXECUTION_OUTPUT");
+  });
   it("lets a forced pass continue after a noise classification", () => {
     const noise = { meaningful: false, significance: "noise" };
     expect(shouldAnalyzeChange(noise)).toBe(false);

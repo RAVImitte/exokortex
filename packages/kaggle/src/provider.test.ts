@@ -8,6 +8,16 @@ const dataset = {
 };
 
 describe("KaggleProvider", () => {
+  it("does not miss same-size file changes in a new dataset version", async () => {
+    const provider = new KaggleProvider({
+      token: "test",
+      fetch: async () => json({ datasetFiles: [{ name: "data.csv", totalBytes: 10 }] }),
+    });
+    expect(await provider.getChanges({ installationId: "ada" }, dataset, "v2", "v3")).toEqual([
+      { path: "data.csv", status: "modified" },
+    ]);
+    expect(await provider.getChanges({ installationId: "ada" }, dataset, "v3", "v3")).toEqual([]);
+  });
   it("discovers the account's datasets and notebooks and skips other owners", async () => {
     const provider = new KaggleProvider({ token: "KGAT_test", fetch: mockFetch() });
     await expect(provider.whoami()).resolves.toEqual({ username: "ada" });

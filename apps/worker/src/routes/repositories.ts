@@ -97,7 +97,7 @@ export function registerRepositoryRoutes(app: Hono<AppBindings>): void {
           userId,
           installationId: connection.externalInstallationId ?? "",
           provider: connection.provider,
-          idempotencyKey: manualScanKey(userId, now, connection.provider),
+          idempotencyKey: manualScanKey(userId, now, `${connection.provider}:${connection.id}`),
         }),
       );
     }

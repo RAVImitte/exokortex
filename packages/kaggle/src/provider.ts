@@ -126,10 +126,12 @@ export class KaggleProvider implements SourceProvider {
     const before = await this.datasetFiles(repo.owner, repo.slug, versionNumber(fromRevision));
     const after = await this.datasetFiles(repo.owner, repo.slug, versionNumber(toRevision));
     const changes: RepositoryChange[] = [];
-    for (const [path, size] of after) {
+    for (const path of after.keys()) {
       const previous = before.get(path);
       if (previous === undefined) changes.push({ path, status: "added" });
-      else if (previous !== size) changes.push({ path, status: "modified" });
+      // Kaggle exposes sizes, not content hashes. A new version may change bytes
+      // without changing size; conservatively include every surviving file.
+      else if (fromRevision !== toRevision) changes.push({ path, status: "modified" });
     }
     for (const path of before.keys()) {
       if (!after.has(path)) changes.push({ path, status: "removed" });

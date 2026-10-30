@@ -55,11 +55,12 @@ export class ApprovalRepository {
   }): Promise<ApprovalRecord> {
     const now = input.now ?? nowIso();
     const id = newId();
-    await this.db
+    const result = await this.db
       .prepare(
         `INSERT INTO approvals
          (id, user_id, project_id, change_event_id, workflow_id, action, status, reason, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+         SELECT ?, ?, ?, ?, ?, ?, 'pending', ?, ?
+         WHERE NOT EXISTS (SELECT 1 FROM approvals WHERE user_id = ? AND change_event_id = ?)`,
       )
       .bind(
         id,
@@ -70,8 +71,15 @@ export class ApprovalRepository {
         input.action,
         input.reason,
         now,
+        input.userId,
+        input.changeEventId,
       )
       .run();
+    if ((result.meta.changes ?? 0) === 0) {
+      const existing = await this.findByChange(input.userId, input.changeEventId);
+      if (!existing) throw new Error("approval insert did not persist");
+      return existing;
+    }
     return {
       id,
       userId: input.userId,

@@ -1,4 +1,5 @@
 import { Database } from "@exokortex/database";
+import { verifyInstallationAccess } from "@exokortex/github";
 import { encryptString, importAesKey, verifyHmacSha256 } from "@exokortex/security";
 import { AppError } from "@exokortex/shared";
 import type { Hono } from "hono";
@@ -6,31 +7,93 @@ import { storeDiscovered } from "../discover.js";
 import type { AppBindings } from "../http/types.js";
 import { pageOrigin } from "../auth.js";
 import { enqueueScan, githubProvider } from "../jobs.js";
-import { open, seal, sessionSecret } from "../session.js";
+import { open, readCookie, seal, sessionSecret } from "../session.js";
+
+const CONNECT_COOKIE = "exo_github_connect";
+
+function connectCookie(nonce: string, secure: boolean, maxAge = 900): string {
+  return `${CONNECT_COOKIE}=${nonce}; HttpOnly; SameSite=Lax; Path=/api/github; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
+}
 
 export function registerGitHubRoutes(app: Hono<AppBindings>): void {
   app.get("/api/github/install", async (c) => {
     const provider = githubProvider(c.env);
-    if (!c.env.GITHUB_APP_SLUG || !provider)
+    if (
+      !c.env.GITHUB_APP_SLUG ||
+      !provider ||
+      !c.env.GITHUB_CLIENT_ID ||
+      !c.env.GITHUB_CLIENT_SECRET ||
+      !c.env.APP_BASE_URL
+    )
       throw new AppError("github_unconfigured", "GitHub App is not configured", 503);
     const returnTo = pageOrigin(c.env, c.req.raw);
+    const nonce = crypto.randomUUID();
+    c.header("Set-Cookie", connectCookie(nonce, new URL(c.req.url).protocol === "https:"));
     const state = await seal(sessionSecret(c.env), {
+      purpose: "github-connect",
+      stage: "install",
+      nonce,
       sub: c.get("userId"),
       returnTo,
       exp: Math.floor(Date.now() / 1000) + 60 * 15,
     });
     const url = `https://github.com/apps/${c.env.GITHUB_APP_SLUG}/installations/new?state=${encodeURIComponent(state)}`;
-    return finishInstall(c, url, null);
+    if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url });
+    return c.redirect(url);
   });
 
   app.get("/api/github/callback", async (c) => {
     const installationId = c.req.query("installation_id");
     const state = c.req.query("state");
-    if (!installationId || !state)
-      throw new AppError("invalid_callback", "Missing installation id");
+    if (!state) throw new AppError("invalid_callback", "Missing connection state");
     const install = await readInstallState(c.env, state);
-    if (!install) throw new AppError("invalid_callback", "Install link expired", 401);
-    const stored = await saveGitHubInstallation(c.env, install.userId, installationId);
+    if (!install || readCookie(c.req.raw, CONNECT_COOKIE) !== install.nonce) {
+      throw new AppError(
+        "invalid_callback",
+        "Install link expired or belongs to another browser",
+        401,
+      );
+    }
+    if (!c.env.GITHUB_CLIENT_ID || !c.env.GITHUB_CLIENT_SECRET || !c.env.APP_BASE_URL) {
+      throw new AppError("github_unconfigured", "GitHub user authorization is not configured", 503);
+    }
+    const redirectUri = `${c.env.APP_BASE_URL.replace(/\/$/, "")}/api/github/callback`;
+    if (install.stage === "install") {
+      if (!installationId || !/^\d+$/.test(installationId))
+        throw new AppError("invalid_callback", "Missing installation id");
+      const nextState = await seal(sessionSecret(c.env), {
+        ...install,
+        stage: "authorize",
+        installationId,
+      });
+      const target = new URL("https://github.com/login/oauth/authorize");
+      target.search = new URLSearchParams({
+        client_id: c.env.GITHUB_CLIENT_ID,
+        redirect_uri: redirectUri,
+        state: nextState,
+      }).toString();
+      return c.redirect(target.toString());
+    }
+    const code = c.req.query("code");
+    if (!code || !install.installationId)
+      throw new AppError("invalid_callback", "Missing GitHub authorization code");
+    try {
+      await verifyInstallationAccess({
+        clientId: c.env.GITHUB_CLIENT_ID,
+        clientSecret: c.env.GITHUB_CLIENT_SECRET,
+        code,
+        redirectUri,
+        installationId: install.installationId,
+      });
+    } catch {
+      throw new AppError(
+        "installation_access",
+        "GitHub could not verify your access to this installation. Connect again with an account that has access.",
+        403,
+      );
+    }
+    const stored = await saveGitHubInstallation(c.env, install.sub, install.installationId);
+    c.header("Set-Cookie", connectCookie("", new URL(c.req.url).protocol === "https:", 0));
     return c.redirect(`${install.returnTo}/repositories?connected=${stored}`);
   });
 
@@ -84,16 +147,6 @@ export function registerGitHubRoutes(app: Hono<AppBindings>): void {
   });
 }
 
-function finishInstall(c: { req: { header: (name: string) => string | undefined }; json: (body: unknown) => Response; redirect: (url: string) => Response }, target: string, stored: number | null): Response {
-  if (stored !== null) {
-    const url = `${target}/repositories?connected=${stored}`;
-    if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url });
-    return c.redirect(url);
-  }
-  if ((c.req.header("Accept") ?? "").includes("application/json")) return c.json({ url: target });
-  return c.redirect(target);
-}
-
 async function saveGitHubInstallation(
   env: AppBindings["Bindings"],
   userId: string,
@@ -124,13 +177,42 @@ async function saveGitHubInstallation(
 async function readInstallState(
   env: AppBindings["Bindings"],
   state: string,
-): Promise<{ userId: string; returnTo: string } | null> {
-  const payload = await open<{ sub?: string; exp?: number; returnTo?: string }>(
-    sessionSecret(env),
-    state,
-  );
-  if (!payload?.sub || !payload.exp || payload.exp * 1000 < Date.now()) return null;
-  return { userId: payload.sub, returnTo: safeReturn(payload.returnTo, env.APP_BASE_URL) };
+): Promise<{
+  purpose: string;
+  stage: "install" | "authorize";
+  sub: string;
+  nonce: string;
+  exp: number;
+  returnTo: string;
+  installationId?: string;
+} | null> {
+  const payload = await open<{
+    purpose?: string;
+    stage?: "install" | "authorize";
+    sub?: string;
+    nonce?: string;
+    exp?: number;
+    returnTo?: string;
+    installationId?: string;
+  }>(sessionSecret(env), state);
+  if (
+    payload?.purpose !== "github-connect" ||
+    (payload.stage !== "install" && payload.stage !== "authorize") ||
+    !payload.sub ||
+    !payload.nonce ||
+    !payload.exp ||
+    payload.exp * 1000 < Date.now()
+  )
+    return null;
+  return {
+    ...payload,
+    purpose: payload.purpose,
+    stage: payload.stage,
+    sub: payload.sub,
+    nonce: payload.nonce,
+    exp: payload.exp,
+    returnTo: safeReturn(payload.returnTo, env.APP_BASE_URL),
+  };
 }
 
 function safeReturn(returnTo: string | undefined, appBaseUrl: string | undefined): string {
@@ -154,14 +236,18 @@ async function enqueuePush(
   after: string,
 ) {
   const db = new Database(env.DB);
-  const connection = await db.connections.findByInstallation(installationId);
-  const repository = await db.repos.findByExternalId(externalId);
-  if (!connection?.externalInstallationId || !repository || repository.userId !== connection.userId)
-    return;
-  await enqueueScan(env, db, {
-    userId: repository.userId,
-    installationId: connection.externalInstallationId,
-    repositoryId: repository.id,
-    idempotencyKey: `scan:${repository.userId}:${repository.id}:${after}`,
-  });
+  for (const connection of await db.connections.listByInstallation(installationId)) {
+    const repository = await db.repos.findByExternalId(
+      connection.userId,
+      connection.id,
+      externalId,
+    );
+    await enqueueScan(env, db, {
+      userId: connection.userId,
+      installationId,
+      // Unknown repositories trigger discovery before the baseline scan.
+      repositoryId: repository?.id,
+      idempotencyKey: `scan:${connection.userId}:${connection.id}:${externalId}:${after}`,
+    });
+  }
 }

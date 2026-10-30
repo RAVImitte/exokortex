@@ -10,6 +10,30 @@ import {
   templateContractFromMarker,
 } from "@exokortex/orchestrator";
 import type { Database } from "@exokortex/database";
+import { AppError } from "@exokortex/shared";
+
+export async function portfolioInstallation(db: Database, userId: string): Promise<string> {
+  const portfolio = await db.repos.findByRole(userId, "PORTFOLIO");
+  if (!portfolio)
+    throw new AppError(
+      "no_portfolio",
+      "Mark a portfolio repository before approving a change",
+      409,
+    );
+  const connection = await db.connections.findOwned(userId, portfolio.connectionId);
+  if (
+    connection?.provider !== "github" ||
+    connection.status !== "active" ||
+    !connection.externalInstallationId
+  ) {
+    throw new AppError(
+      "not_connected",
+      "Reconnect the portfolio's GitHub account before approving a change",
+      409,
+    );
+  }
+  return connection.externalInstallationId;
+}
 
 export async function ensurePortfolioProfile(
   db: Database,
@@ -87,12 +111,13 @@ export async function runEngineerJob(input: {
     name: portfolio.name,
     defaultBranch: portfolio.defaultBranch ?? "main",
   };
-  const connectionRef = { installationId: input.installationId };
+  const connectionRef = { installationId: await portfolioInstallation(input.db, input.userId) };
   const dataPath = projectDataFile(profile.projectDataPath, project.slug);
   let marker: string | null = null;
   try {
     marker = (await input.provider.getFile(connectionRef, githubRepo, "exokortex.json")).content;
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("returned 404")) throw error;
     // A missing marker means a hand-built portfolio. The initial null stands.
   }
   const editProfile = {
@@ -103,7 +128,8 @@ export async function runEngineerJob(input: {
   let currentContent: string | null;
   try {
     currentContent = (await input.provider.getFile(connectionRef, githubRepo, dataPath)).content;
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("returned 404")) throw error;
     currentContent = null;
   }
   const change = await proposeEngineerEdit({

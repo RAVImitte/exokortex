@@ -85,9 +85,10 @@ export class GitHubProvider implements SourceProvider {
     revision?: string,
   ): Promise<FileContent> {
     const token = await this.client.installationToken(connection.installationId);
-    const ref = revision ? `?ref=${encodeURIComponent(revision)}` : "";
+    const ref = `?ref=${encodeURIComponent(revision ?? repository.defaultBranch)}`;
+    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
     const file = await this.client.request<{ content?: string; encoding?: string }>(
-      `/repos/${repository.name}/contents/${path}${ref}`,
+      `/repos/${repository.name}/contents/${encodedPath}${ref}`,
       token,
     );
     const content =

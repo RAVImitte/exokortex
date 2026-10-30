@@ -16,6 +16,7 @@ export function registerGoogleRoutes(app: Hono<AppBindings>): void {
     if (!config) throw new AppError("google_unconfigured", "Google OAuth is not configured", 503);
     const redirectUri = callbackUrl(c.env);
     const state = await seal(sessionSecret(c.env), {
+      purpose: "google-connect",
       sub: c.get("userId"),
       exp: Math.floor(Date.now() / 1000) + 60 * 15,
     });
@@ -100,7 +101,16 @@ async function readInstallState(
   env: AppBindings["Bindings"],
   state: string,
 ): Promise<string | null> {
-  const payload = await open<{ sub?: string; exp?: number }>(sessionSecret(env), state);
-  if (!payload?.sub || !payload.exp || payload.exp * 1000 < Date.now()) return null;
+  const payload = await open<{ purpose?: string; sub?: string; exp?: number }>(
+    sessionSecret(env),
+    state,
+  );
+  if (
+    payload?.purpose !== "google-connect" ||
+    !payload.sub ||
+    !payload.exp ||
+    payload.exp * 1000 < Date.now()
+  )
+    return null;
   return payload.sub;
 }

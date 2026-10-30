@@ -26,7 +26,11 @@ export async function runScheduler(env: Env, now = new Date()): Promise<void> {
           userId: user.id,
           installationId: connection.externalInstallationId ?? "",
           provider: connection.provider,
-          idempotencyKey: scheduledScanKey(user.id, user.nextScanAt, connection.provider),
+          idempotencyKey: scheduledScanKey(
+            user.id,
+            user.nextScanAt,
+            `${connection.provider}:${connection.id}`,
+          ),
         });
       }
     }

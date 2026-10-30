@@ -109,16 +109,16 @@ export class ConnectionRepository {
     return row?.encrypted_credentials ?? null;
   }
 
-  async findByInstallation(installationId: string): Promise<ConnectionRecord | null> {
-    const row = await this.db
+  async listByInstallation(installationId: string): Promise<ConnectionRecord[]> {
+    const rows = await this.db
       .prepare(
         `SELECT * FROM connections
          WHERE provider = 'github' AND external_installation_id = ? AND status = 'active'
-         LIMIT 1`,
+         ORDER BY created_at`,
       )
       .bind(installationId)
-      .first<ConnectionRow>();
-    return row ? toConnection(row) : null;
+      .all<ConnectionRow>();
+    return rows.results.map(toConnection);
   }
 
   async disconnect(userId: string, connectionId: string, now = nowIso()): Promise<boolean> {

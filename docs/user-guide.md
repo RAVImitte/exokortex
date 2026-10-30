@@ -34,7 +34,7 @@ Open **AI model**.
 3. Paste your API key and choose **Save**.
 4. Choose **Test model**. A green result means it works.
 
-Your key is never shown again and is never sent to the AI itself. When you change any setting here later, paste the key again.
+Your key is never shown again and is never sent to the AI itself. When changing settings later, leave the key blank to keep it or enter a new key to replace it.
 
 ### 3. Pick your portfolio
 

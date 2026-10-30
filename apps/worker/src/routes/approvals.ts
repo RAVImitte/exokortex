@@ -7,6 +7,7 @@ import { AppError, nowIso } from "@exokortex/shared";
 import type { Context, Hono } from "hono";
 import type { AppBindings } from "../http/types.js";
 import { enqueueEngineer } from "../jobs.js";
+import { portfolioInstallation } from "../engineer.js";
 
 export function registerApprovalRoutes(app: Hono<AppBindings>): void {
   app.get("/api/projects", async (c) => {
@@ -65,27 +66,18 @@ export function registerApprovalRoutes(app: Hono<AppBindings>): void {
       : [];
     const isLast = pendingBefore.length <= 1;
     const willEngineer = isLast && (body.decision === "approved" || alreadyApproved.length > 0);
-    const github = (await db.connections.list(userId)).find(
-      (connection) => connection.provider === "github" && connection.status === "active",
-    );
-    if (willEngineer && !github?.externalInstallationId) {
-      throw new AppError(
-        "not_connected",
-        "Connect GitHub before approving a portfolio change",
-        409,
-      );
-    }
+    const installationId = willEngineer ? await portfolioInstallation(db, userId) : null;
     const projectId =
       body.decision === "approved" ? await applyApproval(db, userId, approval) : null;
     const resolved = await db.approvals.resolve(userId, approval.id, body.decision, projectId);
     if (!resolved) throw new AppError("not_found", "Approval not found", 404);
     if (!approval.workflowId) {
-      if (body.decision === "approved" && github?.externalInstallationId) {
+      if (body.decision === "approved" && installationId) {
         const queued = await enqueueEngineer(db, {
           userId,
           workflowId: null,
           approvalId: approval.id,
-          installationId: github.externalInstallationId,
+          installationId,
         });
         if (queued.created) await c.env.JOBS.send({ jobId: queued.jobId });
       }
@@ -101,9 +93,6 @@ async function continueWorkflow(
   userId: string,
   workflowId: string,
 ): Promise<Response> {
-  const github = (await db.connections.list(userId)).find(
-    (connection) => connection.provider === "github" && connection.status === "active",
-  );
   const pending = await db.approvals.listPending(userId, workflowId);
   const approved = await db.approvals.listApprovedWithoutPullRequest(userId, workflowId);
   const followUp = approvalFollowUp({
@@ -111,10 +100,11 @@ async function continueWorkflow(
     approvedWithoutPullRequest: approved.length,
   });
   if (followUp === "wait") return c.json({ ok: true });
-  if (followUp === "complete" || !github?.externalInstallationId) {
+  if (followUp === "complete") {
     await finishWorkflow(db, userId, workflowId, "COMPLETED");
     return c.json({ ok: true });
   }
+  const installationId = await portfolioInstallation(db, userId);
   await finishWorkflow(db, userId, workflowId, "ENGINEERING");
   const queued = [];
   for (const item of approved) {
@@ -123,7 +113,7 @@ async function continueWorkflow(
         userId,
         workflowId,
         approvalId: item.id,
-        installationId: github.externalInstallationId,
+        installationId,
       }),
     );
   }

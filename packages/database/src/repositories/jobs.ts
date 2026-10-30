@@ -11,12 +11,14 @@ export class JobRepository {
     payload: unknown;
     idempotencyKey: string;
     workflowId?: string | null;
+    workflowState?: string;
     maxAttempts: number;
     now?: string;
   }): Promise<{ job: JobRecord; created: boolean }> {
     const now = input.now ?? nowIso();
     const id = newId();
-    const result = await this.db
+    const workflowId = input.workflowState ? newId() : (input.workflowId ?? null);
+    const statement = this.db
       .prepare(
         `INSERT INTO jobs
          (id, user_id, workflow_id, type, payload_json, status, attempts, max_attempts, idempotency_key, created_at, updated_at)
@@ -26,15 +28,27 @@ export class JobRepository {
       .bind(
         id,
         input.userId,
-        input.workflowId ?? null,
+        workflowId,
         input.type,
         JSON.stringify(input.payload ?? {}),
         input.maxAttempts,
         input.idempotencyKey,
         now,
         now,
-      )
-      .run();
+      );
+    const result = input.workflowState
+      ? (
+          await this.db.batch([
+            this.db
+              .prepare(
+                `INSERT INTO workflows (id, user_id, state, created_at, updated_at)
+             SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE idempotency_key = ?)`,
+              )
+              .bind(workflowId, input.userId, input.workflowState, now, now, input.idempotencyKey),
+            statement,
+          ])
+        )[1]!
+      : await statement.run();
     if ((result.meta.changes ?? 0) > 0) {
       const job = await this.find(id);
       if (!job) throw new Error("job insert did not persist");
@@ -136,8 +150,8 @@ export class JobRepository {
     const rows = await this.db
       .prepare(
         `SELECT * FROM jobs
-         WHERE status = 'pending' AND next_run_at IS NOT NULL AND next_run_at <= ?
-         ORDER BY next_run_at LIMIT 50`,
+         WHERE status = 'pending' AND (next_run_at IS NULL OR next_run_at <= ?)
+         ORDER BY COALESCE(next_run_at, created_at) LIMIT 50`,
       )
       .bind(now)
       .all<JobRow>();

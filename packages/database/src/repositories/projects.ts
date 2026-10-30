@@ -1,4 +1,5 @@
-import { newId, nowIso } from "@exokortex/shared";
+import { AppError, newId, nowIso } from "@exokortex/shared";
+import { limits } from "@exokortex/core";
 
 export interface ProjectRow {
   id: string;
@@ -38,9 +39,7 @@ export class PortfolioProjectRepository {
 
   async list(userId: string): Promise<PortfolioProjectRecord[]> {
     const rows = await this.db
-      .prepare(
-        "SELECT * FROM portfolio_projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 200",
-      )
+      .prepare("SELECT * FROM portfolio_projects WHERE user_id = ? ORDER BY updated_at DESC")
       .bind(userId)
       .all<ProjectRow>();
     return rows.results.map(toProject);
@@ -66,11 +65,13 @@ export class PortfolioProjectRepository {
     const existing = await this.findBySlug(input.userId, input.slug);
     if (existing) return existing;
     const id = newId();
-    await this.db
+    const result = await this.db
       .prepare(
         `INSERT INTO portfolio_projects
          (id, user_id, slug, name, description, technologies_json, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+         SELECT ?, ?, ?, ?, ?, ?, 'active', ?, ?
+         WHERE (SELECT COUNT(*) FROM portfolio_projects WHERE user_id = ?) < ?
+         ON CONFLICT (user_id, slug) DO NOTHING`,
       )
       .bind(
         id,
@@ -81,8 +82,19 @@ export class PortfolioProjectRepository {
         JSON.stringify(input.technologies),
         now,
         now,
+        input.userId,
+        limits.maxPortfolioProjects,
       )
       .run();
+    if ((result.meta.changes ?? 0) === 0) {
+      const concurrent = await this.findBySlug(input.userId, input.slug);
+      if (concurrent) return concurrent;
+      throw new AppError(
+        "project_limit",
+        `Portfolio project limit of ${limits.maxPortfolioProjects} reached`,
+        409,
+      );
+    }
     return {
       id,
       userId: input.userId,

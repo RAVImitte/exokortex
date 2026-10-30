@@ -29,18 +29,18 @@ Subscribe to these events:
 
 While `pnpm dev` is running, the browser origin is http://localhost:5173 and the Worker is http://127.0.0.1:8787.
 
-Leave **Request user authorization (OAuth) during installation** unchecked. GitHub then shows a **Setup URL**. That is where the browser goes after install, with `installation_id` and `state`.
+Leave **Request user authorization (OAuth) during installation** unchecked. GitHub then shows a **Setup URL**. ExoKortex receives the installation id there, then starts user authorization and verifies that the user can access that installation before saving it. Both steps use expiring, signed state bound to the browser with an HttpOnly cookie. An installation id alone never grants access.
 
 | GitHub field   | Local value                                                  |
 | -------------- | ------------------------------------------------------------ |
-| Setup URL      | `http://127.0.0.1:8787/api/github/callback`                  |
-| Callback URL   | Leave empty. This is only the OAuth redirect.                |
+| Setup URL      | `http://localhost:5173/api/github/callback`                  |
+| Callback URL   | `http://localhost:5173/api/github/callback`                  |
 | Webhook URL    | See the tunnel section. GitHub cannot call `127.0.0.1`.      |
 | Webhook secret | A long random string. Same value as `GITHUB_WEBHOOK_SECRET`. |
 
 Check **Redirect on update** so adding or removing repositories hits the Setup URL again.
 
-If OAuth during installation is already checked, GitHub hides the Setup URL. Put `http://127.0.0.1:8787/api/github/callback` in **Callback URL** instead.
+The Setup URL, Callback URL, and `APP_BASE_URL` must use the same browser host. Locally, Vite proxies these callbacks to the Worker. Do not mix `localhost` and `127.0.0.1`, because the browser's connection cookie is host-specific. If OAuth during installation was checked, uncheck it and configure both URLs above.
 
 `APP_BASE_URL` in `.dev.vars` (`http://localhost:5173`) is not a GitHub field. After the Worker stores the installation, it sends the browser there, to `/repositories`.
 
@@ -49,12 +49,14 @@ After GitHub shows the App’s numeric id, slug, and a PEM private key, put them
 ```text
 GITHUB_APP_ID=
 GITHUB_APP_SLUG=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_WEBHOOK_SECRET=
 APP_BASE_URL=http://localhost:5173
 ```
 
-The private key may use literal `\n` for newlines. Restart `pnpm dev` after editing `.dev.vars`.
+The client id is different from the numeric app id. Generate a client secret in the GitHub App settings. The user access token is used only to verify installation access and is never stored. The private key may use literal `\n` for newlines. Restart `pnpm dev` after editing `.dev.vars`.
 
 In the dashboard, Connections → Connect GitHub opens `https://github.com/apps/<slug>/installations/new` with a signed `state` that expires in 15 minutes. The callback discovers up to 100 repositories (10 pages of 100). Past that, discovery stops at the cap.
 
@@ -82,4 +84,4 @@ npx smee-client --url https://smee.io/<your-channel> --target http://127.0.0.1:8
 
 The Worker checks `X-Hub-Signature-256`. A valid `push` with an installation id, repository id, and `after` SHA enqueues `scan:{userId}:{repositoryId}:{sha}`. The same delivery twice does not create two jobs.
 
-The first successful scan of a repository stores the SHA and writes no change event. A later different SHA writes one.
+The first successful scan of a repository stores the SHA and writes no change event. A later different SHA writes one. Full manual and scheduled scans also rediscover repositories. A push from an unknown repository triggers discovery, so adding a repository does not require reconnecting.

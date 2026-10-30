@@ -10,6 +10,8 @@ export interface Env {
   CLERK_PUBLISHABLE_KEY?: string;
   GITHUB_APP_ID?: string;
   GITHUB_APP_SLUG?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
   GITHUB_WEBHOOK_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;

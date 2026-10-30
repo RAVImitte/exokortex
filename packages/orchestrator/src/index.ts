@@ -1,6 +1,7 @@
 export {
   analyzeChange,
   analystContextFiles,
+  analystPaths,
   askAgent,
   runAgentPass,
   scoutChange,

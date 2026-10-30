@@ -158,7 +158,7 @@ export function AiPage() {
             hint={
               saved ? (
                 <span className="saved-note">
-                  <KeyRound size={13} /> A key is saved. Enter it again to change any setting.
+                  <KeyRound size={13} /> A key is saved. Leave this blank to keep it.
                 </span>
               ) : (
                 "Encrypted at rest. It is never shown again."
@@ -171,7 +171,7 @@ export function AiPage() {
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 placeholder="sk-..."
-                required
+                required={!saved}
               />
             )}
           </Field>

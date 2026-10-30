@@ -45,22 +45,27 @@ export class ChangeEventRepository {
     return (result.meta.changes ?? 0) > 0;
   }
 
-  async listOpen(userId: string, repositoryId?: string): Promise<ChangeEventRecord[]> {
-    const statement = repositoryId
-      ? this.db
-          .prepare(
-            `SELECT * FROM change_events
-             WHERE user_id = ? AND repository_id = ? AND status = 'open'
-             ORDER BY created_at LIMIT 20`,
-          )
-          .bind(userId, repositoryId)
-      : this.db
-          .prepare(
-            `SELECT * FROM change_events
-             WHERE user_id = ? AND status = 'open'
-             ORDER BY created_at LIMIT 20`,
-          )
-          .bind(userId);
+  async listOpen(
+    userId: string,
+    repositoryId?: string,
+    connectionId?: string,
+  ): Promise<ChangeEventRecord[]> {
+    const statement = this.db
+      .prepare(
+        `SELECT c.* FROM change_events c JOIN repositories r ON r.id = c.repository_id
+       WHERE c.user_id = ? AND r.user_id = ? AND c.status = 'open'
+       AND (? IS NULL OR c.repository_id = ?) AND (? IS NULL OR r.connection_id = ?)
+       AND r.role = 'SOURCE' AND r.excluded = 0
+       ORDER BY c.created_at`,
+      )
+      .bind(
+        userId,
+        userId,
+        repositoryId ?? null,
+        repositoryId ?? null,
+        connectionId ?? null,
+        connectionId ?? null,
+      );
     const rows = await statement.all<ChangeEventRow>();
     return rows.results.map(toChangeEvent);
   }
@@ -81,32 +86,36 @@ export class ChangeEventRepository {
       .run();
   }
 
-  async listReadyForCurator(userId: string, repositoryId?: string): Promise<ChangeEventRecord[]> {
-    const statement = repositoryId
-      ? this.db
-          .prepare(
-            `SELECT c.* FROM change_events c
-             WHERE c.user_id = ? AND c.repository_id = ? AND c.status = 'analyzed'
-             AND NOT EXISTS (
-               SELECT 1 FROM agent_runs a
-               WHERE a.change_event_id = c.id AND a.user_id = c.user_id
-                 AND a.agent_name = 'curator' AND a.status = 'completed'
-             )
-             ORDER BY c.created_at LIMIT 20`,
-          )
-          .bind(userId, repositoryId)
-      : this.db
-          .prepare(
-            `SELECT c.* FROM change_events c
-             WHERE c.user_id = ? AND c.status = 'analyzed'
-             AND NOT EXISTS (
-               SELECT 1 FROM agent_runs a
-               WHERE a.change_event_id = c.id AND a.user_id = c.user_id
-                 AND a.agent_name = 'curator' AND a.status = 'completed'
-             )
-             ORDER BY c.created_at LIMIT 20`,
-          )
-          .bind(userId);
+  async listReadyForCurator(
+    userId: string,
+    repositoryId?: string,
+    connectionId?: string,
+  ): Promise<ChangeEventRecord[]> {
+    const statement = this.db
+      .prepare(
+        `SELECT c.* FROM change_events c JOIN repositories r ON r.id = c.repository_id
+       WHERE c.user_id = ? AND r.user_id = ? AND c.status = 'analyzed'
+       AND (? IS NULL OR c.repository_id = ?) AND (? IS NULL OR r.connection_id = ?)
+       AND r.role = 'SOURCE' AND r.excluded = 0
+       AND NOT EXISTS (
+         SELECT 1 FROM approvals p WHERE p.user_id = c.user_id AND p.change_event_id = c.id
+       )
+       AND COALESCE((
+         SELECT json_extract(a.output_json, '$.classification') FROM agent_runs a
+         WHERE a.change_event_id = c.id AND a.user_id = c.user_id
+           AND a.agent_name = 'curator' AND a.status = 'completed'
+         ORDER BY a.completed_at DESC LIMIT 1
+       ), '') NOT IN ('UNCHANGED', 'IGNORE')
+       ORDER BY c.created_at`,
+      )
+      .bind(
+        userId,
+        userId,
+        repositoryId ?? null,
+        repositoryId ?? null,
+        connectionId ?? null,
+        connectionId ?? null,
+      );
     const rows = await statement.all<ChangeEventRow>();
     return rows.results.map(toChangeEvent);
   }

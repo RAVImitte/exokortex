@@ -22,12 +22,13 @@ ENCRYPTION_KEY
 DEV_SESSION_SECRET          # only if AUTH_MODE=dev, which production must not use
 CLERK_SECRET_KEY            # when AUTH_MODE=clerk
 GITHUB_APP_PRIVATE_KEY
+GITHUB_CLIENT_SECRET
 GITHUB_WEBHOOK_SECRET
 GOOGLE_CLIENT_SECRET
 RESEND_API_KEY              # omit to skip mail
 ```
 
-Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE_URL`, `EMAIL_FROM`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GOOGLE_CLIENT_ID`, `CLERK_PUBLISHABLE_KEY`) can be Wrangler vars. The Vite build needs `VITE_AUTH_MODE=clerk` and `VITE_CLERK_PUBLISHABLE_KEY` at build time.
+Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE_URL`, `EMAIL_FROM`, `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `CLERK_PUBLISHABLE_KEY`) can be Wrangler vars. The Vite build needs `VITE_AUTH_MODE=clerk` and `VITE_CLERK_PUBLISHABLE_KEY` at build time.
 
 `AUTH_MODE=dev` must not be set when `ENVIRONMENT` is anything other than `development`. The Worker refuses dev login in that case.
 
