@@ -6,6 +6,8 @@ ExoKortex watches the places your work lives (GitHub, Hugging Face, Kaggle, and 
 
 It uses your own AI key, so you choose the model and pay the provider directly. It never merges, never deploys, and never sends your keys to the model.
 
+The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/).
+
 ## How it works
 
 ```mermaid
@@ -102,7 +104,7 @@ docs/                Product, architecture, integrations, decisions
 
 ## Status
 
-All planned slices are done and the app runs locally. It has not been published yet. What is left before release is in [release readiness](docs/product/release-readiness.md). Bigger ideas are in [feature ideas](docs/product/feature-ideas.md).
+All planned slices are done. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/), and the app also runs locally. What is still open is in [release readiness](docs/product/release-readiness.md). Bigger ideas are in [feature ideas](docs/product/feature-ideas.md).
 
 ## Documentation
 

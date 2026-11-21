@@ -1,6 +1,6 @@
 # Release readiness
 
-What still has to happen before ExoKortex is published for other people, and what would make the first release better. The slice tracker in [roadmap.md](roadmap.md) is finished. This list is the work after it.
+The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). This list is what is still open, and what would make that site better. The slice tracker in [roadmap.md](roadmap.md) is finished.
 
 Priority words: **Blocker** means do not publish without it. **Should** means fix it in the first weeks. **Polish** means it can wait.
 
@@ -22,7 +22,7 @@ Package tests and Worker HTTP/job regression tests run in Node with real SQLite 
 
 ### A real deploy, end to end
 
-`apps/worker/wrangler.jsonc` contains a database identifier and hosted URL, but configuration alone does not establish that the full flow has been verified in Cloudflare.
+The public Worker is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). `apps/worker/wrangler.jsonc` contains that URL and a database identifier, but configuration alone does not establish that the full flow has been verified in Cloudflare.
 
 - Create a staging Worker, D1 database, and queue. Follow [deployment.md](../development/deployment.md) in order.
 - Create a production GitHub App with the production callback and webhook URLs. Keep the local App for development.

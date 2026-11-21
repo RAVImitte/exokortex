@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Public site: https://exokortex.exokortex.workers.dev/
 - Scout, Analyst, and Curator run in the scan job. The last approval runs Portfolio Engineer and opens a pull request.
 - Hugging Face, Kaggle, and Google Colab are source connections. The portfolio stays one GitHub repository.
 - Approval-waiting and pull-request-opened mail when Resend is configured.

@@ -1,8 +1,8 @@
 # Deployment
 
-Status: **Planned**. This repository runs locally. Do not deploy it from the bootstrap scripts.
+Status: **Deployed**. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). Bootstrap scripts still do not deploy. Publish with the Wrangler command below.
 
-## What a later deploy uses
+## What the deploy uses
 
 One Cloudflare Worker named `exokortex`:
 
@@ -41,6 +41,6 @@ Non-secret configuration (`ENVIRONMENT=production`, `AUTH_MODE=clerk`, `APP_BASE
 5. Put secrets in place.
 6. `pnpm --filter @exokortex/worker exec wrangler deploy`
 
-The GitHub App callback URL becomes `https://<your-host>/api/github/callback`. The webhook URL becomes `https://<your-host>/api/github/webhook`. The Google OAuth redirect URI becomes `https://<your-host>/api/google/callback`.
+On the public site, the GitHub App callback URL is `https://exokortex.exokortex.workers.dev/api/github/callback`. The webhook URL is `https://exokortex.exokortex.workers.dev/api/github/webhook`. The Google OAuth redirect URI is `https://exokortex.exokortex.workers.dev/api/google/callback`. `APP_BASE_URL` is `https://exokortex.exokortex.workers.dev`.
 
 Production deploys of a user’s portfolio stay on that user’s existing CI. ExoKortex opens a pull request later. It does not deploy the portfolio.

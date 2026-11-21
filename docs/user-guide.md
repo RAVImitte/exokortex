@@ -4,6 +4,8 @@ ExoKortex keeps your portfolio website up to date for you. You keep working on y
 
 You stay in control. ExoKortex never merges, never deploys, and never posts anything without your approval.
 
+Open it at [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/).
+
 ## What you need
 
 - A GitHub account with your portfolio website in a repository. The site should read its project list from a data file, such as `projects.json` or a Markdown folder.

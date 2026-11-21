@@ -171,7 +171,7 @@ Ciphertext is `v1:<iv>:<cipher>`, so a future key version can be told apart from
 
 The LLM client speaks the OpenAI chat-completions shape. Any compatible base URL works. ExoKortex does not pay for inference and does not send credentials to the model. Scout, Analyst, and Curator run from the scan job. The Engineer runs from its own job. All four return validated JSON.
 
-The slice list is finished. Turnstile and deploying the portfolio from the user’s CI stay **Planned**. Publishing ExoKortex is the checklist in [deployment.md](../development/deployment.md). The user merges pull requests. Auto-merge stays off. Email is sent through Resend when an approval is waiting and when a pull request opens. Hugging Face, Kaggle, and Google Colab are sources. The portfolio repository stays on GitHub.
+The slice list is finished. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). Turnstile and deploying the portfolio from the user’s CI stay **Planned**. How the Worker is published is in [deployment.md](../development/deployment.md). The user merges pull requests. Auto-merge stays off. Email is sent through Resend when an approval is waiting and when a pull request opens. Hugging Face, Kaggle, and Google Colab are sources. The portfolio repository stays on GitHub.
 
 ## What this stack deliberately leaves out
 

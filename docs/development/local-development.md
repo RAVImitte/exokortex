@@ -28,7 +28,7 @@ pnpm dev
 | Vite (`@exokortex/web`)        | http://localhost:5173 | Dashboard. Proxies `/api` to the Worker. |
 | Wrangler (`@exokortex/worker`) | http://127.0.0.1:8787 | API, local D1, queue, and cron.          |
 
-Open http://localhost:5173 and sign in with any email. Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
+Open http://localhost:5173 and sign in with any email. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). Port 8787 does not serve a second copy of the dashboard. Dev login is refused unless `ENVIRONMENT=development` and `AUTH_MODE=dev`.
 
 Two local files, and they do not share values:
 

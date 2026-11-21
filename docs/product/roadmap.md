@@ -1,6 +1,6 @@
 # Slice tracker
 
-This is the only progress list. A slice is done when its acceptance checks pass. This list is finished, so no slice is current. Publishing is the checklist in [deployment.md](../development/deployment.md).
+This is the only progress list. A slice is done when its acceptance checks pass. This list is finished, so no slice is current. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). How it is published is in [deployment.md](../development/deployment.md).
 
 Status words: **Done**, **Current**, **Later**.
 

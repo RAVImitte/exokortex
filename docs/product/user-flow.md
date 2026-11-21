@@ -1,6 +1,6 @@
 # User flow
 
-Status: steps 1–8 are **Implemented**. Publishing is the checklist in [deployment.md](../development/deployment.md).
+Status: steps 1–8 are **Implemented**. The public site is [https://exokortex.exokortex.workers.dev/](https://exokortex.exokortex.workers.dev/). How it is published is in [deployment.md](../development/deployment.md).
 
 1. Sign in. Locally this is an email form. In production it is Clerk.
 2. Connect GitHub by installing the ExoKortex GitHub App. The callback stores the installation id, encrypted, and discovers repositories. Connect Hugging Face with a read token, Kaggle with an API token, or Google with OAuth. Those discover models, datasets, spaces, Kaggle datasets and notebooks, and Colab notebooks you own. Those stay sources. The portfolio is still one GitHub repository.
