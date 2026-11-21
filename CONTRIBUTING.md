@@ -2,6 +2,8 @@
 
 Follow the [slice tracker](docs/product/roadmap.md). Work on the current slice only. Do not add billing, a second database, or a later slice before its entry condition is met.
 
+Do improvement work on the `dev` branch. Pushes to `dev` run the checks and do not deploy. Merge `dev` into `main` to publish the Worker. See [deployment.md](docs/development/deployment.md).
+
 ## Setup
 
 Follow [docs/development/local-development.md](docs/development/local-development.md).

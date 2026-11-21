@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Public site: https://exokortex.exokortex.workers.dev/
+- CI checks `main` and `dev`. A push to `main` applies D1 migrations and deploys the Worker. Improvement work stays on `dev`.
 - Scout, Analyst, and Curator run in the scan job. The last approval runs Portfolio Engineer and opens a pull request.
 - Hugging Face, Kaggle, and Google Colab are source connections. The portfolio stays one GitHub repository.
 - Approval-waiting and pull-request-opened mail when Resend is configured.

@@ -8,9 +8,10 @@ Priority words: **Blocker** means do not publish without it. **Should** means fi
 
 ### Continuous integration
 
-`.github/workflows/checks.yml` runs locked dependency installation, lint, typecheck, tests, and the build on Node 22 for pushes and pull requests.
+`.github/workflows/ci.yml` runs locked dependency installation, lint, typecheck, tests, and the build on Node 22 for pushes and pull requests to `main` and `dev`. A push to `main` then applies D1 migrations and deploys the Worker.
 
-- Require it on `main` before merging.
+- Add the `CLOUDFLARE_API_TOKEN` repository secret if the Deploy job cannot authenticate.
+- Require the Check job on `main` before merging.
 
 ### Tests for the Worker itself
 
